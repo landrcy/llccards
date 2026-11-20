@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LLC Cards</title>
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
+    <img class="logo" src="assets/logo.png" alt="LLC Cards">
+    <p class="tap-hint">click / tap to start</p>
+    <p class="standin-note">Type is a stand-in: Ms Paint Mouse. Logo and card back are Landry's drawings.</p>
+  </section>
+
+  <section id="screen-map" class="screen" aria-label="The map">
+    <div class="topbar">
+      <h1>THE MAP</h1>
+      <div class="spacer"></div>
+      <button type="button" id="btn-map-binder">Binder</button>
+    </div>
+    <div class="map-wrap" id="map-wrap">
+      <img class="map" src="assets/map.png" alt="Hand-drawn map with a shop and a battle arena">
+      <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
+      <button type="button" class="hotspot" id="hot-battle" aria-label="Battle, coming soon"></button>
+    </div>
+    <p class="map-hint">tap the shop to buy packs</p>
+  </section>
+
+  <section id="screen-shop" class="screen" aria-label="The shop">
+    <div class="topbar">
+      <button type="button" id="btn-shop-back">Map</button>
+      <h1>THE SHOP</h1>
+      <div class="spacer"></div>
+      <button type="button" id="btn-shop-binder">Binder</button>
+    </div>
+    <div class="shelf" id="shelf">
+      <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
+        <img src="assets/pack_edition_one.png" alt="">
+        <span class="label">LLC CARDS<br>EDITION ONE<br>FREE — tap to open</span>
+      </button>
+      <button type="button" class="pack-slot locked" id="pack-locked-a" aria-label="Coming soon">
+        <img src="assets/pack_locked.png" alt="">
+        <span class="label">PACK TWO</span>
+      </button>
+      <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
+        <img src="assets/pack_locked.png" alt="">
+        <span class="label">PACK THREE</span>
+      </button>
+    </div>
+    <div class="shop-actions">
+      <button type="button" class="debug-reset" id="btn-reset">reset collection</button>
+    </div>
+  </section>
+
+  <section id="screen-opening" class="screen" aria-label="Pack opening">
+    <div class="opening-stage" id="opening-stage">
+      <div class="pack-on-table" id="pack-live" hidden>
+        <img id="pack-live-img" src="assets/pack_edition_one.png" alt="Edition One pack">
+        <div class="pack-rip" id="pack-rip" hidden>
+          <img class="rip-top" src="assets/pack_rip_top.png" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png" alt="">
+        </div>
+      </div>
+      <div class="card-stack" id="card-stack" hidden></div>
+      <div class="reveal-wrap" id="reveal-wrap" hidden></div>
+      <div class="new-pop" id="new-pop" hidden>
+        <svg class="burst" viewBox="0 0 100 100" aria-hidden="true">
+          <polygon points="50,2 58,32 86,14 70,40 98,50 70,60 86,86 58,70 50,98 42,70 14,86 30,60 2,50 30,40 14,14 42,32"
+                   fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+        </svg>
+        <div class="word">NEW!</div>
+      </div>
+      <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
+      <p class="opening-caption" id="opening-caption"></p>
+    </div>
+    <div class="fly-target" id="fly-target">BINDER</div>
+  </section>
+
+  <section id="screen-binder" class="screen" aria-label="Edition One binder">
+    <div class="topbar">
+      <button type="button" id="btn-binder-back">Back</button>
+      <h1>EDITION ONE BINDER</h1>
+      <div class="spacer"></div>
+      <button type="button" class="debug-reset" id="btn-reset-binder">reset collection</button>
+    </div>
+    <div class="binder-page" id="binder-page"></div>
+    <p class="binder-count" id="binder-count"></p>
+  </section>
+
+  <div class="modal" id="modal-battle" role="dialog" aria-labelledby="battle-title" aria-modal="true">
+    <div class="modal-card">
+      <h2 id="battle-title">BATTLE</h2>
+      <p>Coming soon.<br>Online and vs bots will live here, next to the shop.</p>
+      <button type="button" id="btn-battle-ok">OK</button>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/foil.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

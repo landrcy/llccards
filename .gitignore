@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+shots/_raw/
+assets/art/*_alt_*.png
+assets/star_preview.png

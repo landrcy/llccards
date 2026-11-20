@@ -1,0 +1,26 @@
+The typography in this mockup uses a STAND-IN font.
+
+A font literally named "Pixel Paint" (MS Paint-made, with TTF/OTF/SVG
+downloads) could not be found. These alternatives were checked:
+
+  Stand-in actually used
+  ----------------------
+  Family:  Ms Paint Mouse Regular
+  Author:  Charge, generated with Calligraphr (version 001.002, 13 Oct 2024)
+  Source:  https://www.1001fonts.com/ms-paint-mouse-font.html
+  Files:   MsPaintMouse-Regular.ttf, MsPaintMouse-Regular.otf
+  License: 1001Fonts Free For Commercial Use License (FFC)
+           https://www.1001fonts.com/licenses/ffc.html
+           Free for personal and commercial use. May be embedded in a
+           website or app and converted to WOFF/SVG. May not be modified
+           or sold / republished as a font.
+
+  Also downloaded and rejected
+  ----------------------------
+  MsPain ("lamah") by Anubis & einbein, 2008, from DaFont.
+  License text: "This font is free, do not resell."
+  Looked more pixel-fuzzy, but a bit harder to read at small sizes.
+
+  NoobPaint Font by Yoohoo, from https://yoohoosearch.neocities.org/font/
+  Stated "free to use." Offers TTF, WOFF and SVG. Missing digit glyphs,
+  so it cannot set ATK/DEF numbers.
