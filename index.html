@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>LLC Cards</title>
   <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="stylesheet" href="css/game.css">
+  <link rel="stylesheet" href="css/game.css?v=4">
 </head>
 <body>
+  <div id="wipe" class="wipe" aria-hidden="true"></div>
+
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png" alt="LLC Cards">
+    <img class="logo" src="assets/logo.png?v=4" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
-    <p class="standin-note">Type is a stand-in: Ms Paint Mouse. Logo and card back are Landry's drawings.</p>
   </section>
 
   <section id="screen-map" class="screen" aria-label="The map">
@@ -21,7 +22,7 @@
       <button type="button" id="btn-map-binder">Binder</button>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map" src="assets/map.png" alt="Hand-drawn map with a shop and a battle arena">
+      <img class="map" src="assets/map.png?v=4" alt="Hand-drawn map with a shop and a battle arena" width="1024" height="704">
       <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
       <button type="button" class="hotspot" id="hot-battle" aria-label="Battle, coming soon"></button>
     </div>
@@ -37,15 +38,15 @@
     </div>
     <div class="shelf" id="shelf">
       <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
-        <img src="assets/pack_edition_one.png" alt="">
+        <img src="assets/pack_edition_one.png?v=4" alt="">
         <span class="label">LLC CARDS<br>EDITION ONE<br>FREE — tap to open</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-a" aria-label="Coming soon">
-        <img src="assets/pack_locked.png" alt="">
+        <img src="assets/pack_locked.png?v=4" alt="">
         <span class="label">PACK TWO</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
-        <img src="assets/pack_locked.png" alt="">
+        <img src="assets/pack_locked.png?v=4" alt="">
         <span class="label">PACK THREE</span>
       </button>
     </div>
@@ -57,22 +58,24 @@
   <section id="screen-opening" class="screen" aria-label="Pack opening">
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
-        <img id="pack-live-img" src="assets/pack_edition_one.png" alt="Edition One pack">
+        <img id="pack-live-img" src="assets/pack_edition_one.png?v=4" alt="Edition One pack">
         <div class="pack-rip" id="pack-rip" hidden>
-          <img class="rip-top" src="assets/pack_rip_top.png" alt="">
-          <img class="rip-bottom" src="assets/pack_rip_bottom.png" alt="">
+          <img class="rip-top" src="assets/pack_rip_top.png?v=4" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=4" alt="">
         </div>
+        <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
       <div class="card-stack" id="card-stack" hidden></div>
-      <div class="reveal-wrap" id="reveal-wrap" hidden></div>
-      <div class="new-pop" id="new-pop" hidden>
-        <svg class="burst" viewBox="0 0 100 100" aria-hidden="true">
-          <polygon points="50,2 58,32 86,14 70,40 98,50 70,60 86,86 58,70 50,98 42,70 14,86 30,60 2,50 30,40 14,14 42,32"
-                   fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
-        </svg>
-        <div class="word">NEW!</div>
+      <div class="reveal-wrap" id="reveal-wrap" hidden>
+        <div class="badge-row" id="badge-row">
+          <div class="new-pop" id="new-pop" hidden>
+            <img class="burst" src="assets/ui/new_burst.png?v=4" alt="">
+            <div class="word">NEW!</div>
+          </div>
+          <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
+        </div>
+        <div class="reveal-card" id="reveal-card"></div>
       </div>
-      <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
       <p class="opening-caption" id="opening-caption"></p>
     </div>
     <div class="fly-target" id="fly-target">BINDER</div>
@@ -85,7 +88,12 @@
       <div class="spacer"></div>
       <button type="button" class="debug-reset" id="btn-reset-binder">reset collection</button>
     </div>
-    <div class="binder-page" id="binder-page"></div>
+    <div class="binder-book" id="binder-book">
+      <div class="binder-cover" id="binder-cover" aria-hidden="true">
+        <img src="assets/logo.png?v=4" alt="">
+      </div>
+      <div class="binder-page" id="binder-page"></div>
+    </div>
     <p class="binder-count" id="binder-count"></p>
   </section>
 
@@ -97,9 +105,9 @@
     </div>
   </div>
 
-  <script src="js/data.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/foil.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/data.js?v=4"></script>
+  <script src="js/storage.js?v=4"></script>
+  <script src="js/foil.js?v=4"></script>
+  <script src="js/game.js?v=4"></script>
 </body>
 </html>

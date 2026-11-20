@@ -1,6 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
+  const ASSET_V = "4";
   const reduced = () =>
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -13,14 +14,96 @@
   };
 
   let lastScreen = "map";
-  let opening = null; // { pulls, index, phase, wait }
+  let currentScreen = null;
+  let transitioning = false;
+  let opening = null; // { pulls, index, phase, busy, queued }
 
-  function show(name) {
+  /* ---------- no blue-highlight / no text-select ---------- */
+  document.addEventListener("selectstart", (e) => e.preventDefault());
+  document.addEventListener("dragstart", (e) => e.preventDefault());
+  document.addEventListener("dblclick", (e) => e.preventDefault());
+
+  /* ---------- pixel wipe ---------- */
+  const wipe = $("wipe");
+  (function buildWipe() {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < 20 * 12; i++) {
+      const c = document.createElement("div");
+      c.className = "cell";
+      const col = i % 20;
+      const row = Math.floor(i / 20);
+      const delay = (col * 10 + row * 6) + "ms";
+      c.style.animationDelay = delay;
+      frag.appendChild(c);
+    }
+    wipe.appendChild(frag);
+  })();
+
+  function playWipe(dir) {
+    if (reduced() || document.body.classList.contains("shot")) {
+      return Promise.resolve();
+    }
+    return new Promise((res) => {
+      wipe.classList.remove("out", "in");
+      wipe.classList.add("on", dir);
+      const ms = 260 + 20 * 10 + 12 * 6 + 30;
+      setTimeout(() => {
+        if (dir === "in") wipe.classList.remove("on", "in", "out");
+        res();
+      }, ms);
+    });
+  }
+
+  function fadeScreens(name) {
     Object.keys(screens).forEach((k) => {
       screens[k].classList.toggle("active", k === name);
     });
-    if (name !== "opening") lastScreen = name === "binder" ? lastScreen : name;
-    if (name === "binder") renderBinder();
+  }
+
+  async function show(name, opts) {
+    opts = opts || {};
+    const instant = opts.instant || document.body.classList.contains("shot") || reduced();
+    if (name === currentScreen && !opts.force) {
+      if (name === "binder") renderBinder();
+      return;
+    }
+    if (transitioning && !instant) return;
+    transitioning = !instant;
+
+    if (!instant && currentScreen) {
+      await playWipe("out");
+    } else if (instant && reduced() && currentScreen && !document.body.classList.contains("shot")) {
+      /* short fade under reduced motion */
+      document.body.style.opacity = "0.35";
+      await wait(80);
+      document.body.style.opacity = "";
+    }
+
+    fadeScreens(name);
+    const prev = currentScreen;
+    currentScreen = name;
+    if (name !== "opening") lastScreen = name === "binder" ? (prev === "opening" ? lastScreen : (prev || lastScreen)) : name;
+
+    const book = $("binder-book");
+    book.classList.remove("open", "opened");
+    if (name === "binder") {
+      renderBinder();
+      if (instant) {
+        book.classList.add("opened");
+      } else {
+        void book.offsetWidth;
+        book.classList.add("open");
+        setTimeout(() => {
+          book.classList.add("opened");
+          book.classList.remove("open");
+        }, reduced() ? 0 : 820);
+      }
+    }
+
+    if (!instant && prev) {
+      await playWipe("in");
+    }
+    transitioning = false;
   }
 
   function wait(ms) {
@@ -30,27 +113,24 @@
 
   /* ---------- map hotspots ---------- */
   function placeHotspots() {
-    fetch("assets/map_hotspots.json")
+    const fallback = {
+      shop: { x: 0.121, y: 0.267, w: 0.398, h: 0.386 },
+      battle: { x: 0.574, y: 0.188, w: 0.336, h: 0.568 },
+    };
+    const apply = (el, b) => {
+      el.style.left = (b.x * 100) + "%";
+      el.style.top = (b.y * 100) + "%";
+      el.style.width = (b.w * 100) + "%";
+      el.style.height = (b.h * 100) + "%";
+    };
+    const go = (hs) => {
+      apply($("hot-shop"), hs.shop);
+      apply($("hot-battle"), hs.battle);
+    };
+    fetch("assets/map_hotspots.json?v=" + ASSET_V)
       .then((r) => r.json())
-      .then((hs) => {
-        const shop = $("hot-shop");
-        const battle = $("hot-battle");
-        const apply = (el, b) => {
-          el.style.left = (b.x * 100) + "%";
-          el.style.top = (b.y * 100) + "%";
-          el.style.width = (b.w * 100) + "%";
-          el.style.height = (b.h * 100) + "%";
-        };
-        apply(shop, hs.shop);
-        apply(battle, hs.battle);
-      })
-      .catch(() => {
-        /* fallback percentages matching the last known layout */
-        const shop = $("hot-shop");
-        const battle = $("hot-battle");
-        shop.style.cssText += "left:20%;top:35%;width:36%;height:36%;";
-        battle.style.cssText += "left:63%;top:35%;width:31%;height:42%;";
-      });
+      .then(go)
+      .catch(() => go(fallback));
   }
 
   /* ---------- binder ---------- */
@@ -86,44 +166,75 @@
   }
 
   /* ---------- pack opening ---------- */
+  function hideBadges() {
+    const neu = $("new-pop");
+    const foil = $("foil-tag");
+    neu.hidden = true;
+    neu.classList.remove("show", "hold");
+    foil.hidden = true;
+    foil.classList.remove("show", "hold");
+  }
+
   function clearOpening() {
     const stack = $("card-stack");
-    const reveal = $("reveal-wrap");
+    const revealCard = $("reveal-card");
     stack.innerHTML = "";
-    reveal.innerHTML = "";
+    if (revealCard) revealCard.innerHTML = "";
     stack.hidden = true;
-    reveal.hidden = true;
-    $("new-pop").hidden = true;
-    $("new-pop").classList.remove("show", "hold");
-    $("foil-tag").hidden = true;
-    $("foil-tag").classList.remove("show", "hold");
+    $("reveal-wrap").hidden = true;
+    hideBadges();
     $("pack-live").hidden = true;
     $("pack-rip").hidden = true;
     $("pack-rip").classList.remove("ripping");
     $("pack-live").classList.remove("shaking");
     $("pack-live-img").hidden = false;
+    $("scraps").innerHTML = "";
     $("fly-target").classList.remove("visible");
     $("opening-caption").textContent = "";
+    const ripTop = $("pack-rip").querySelector(".rip-top");
+    const ripBot = $("pack-rip").querySelector(".rip-bottom");
+    if (ripTop) { ripTop.style.animation = ""; ripTop.style.transform = ""; }
+    if (ripBot) { ripBot.style.animation = ""; ripBot.style.transform = ""; }
     opening = null;
   }
 
-  function layoutStack(stack, cards, peek) {
+  function layoutStack(stack, cards) {
     const n = cards.length;
     cards.forEach((el, i) => {
       const fromTop = n - 1 - i;
       const rot = (i - (n - 1) / 2) * 3.2;
       el.style.transform = "translate(" + (fromTop * -4) + "px, " + (fromTop * 7) + "px) rotate(" + rot + "deg)";
       el.style.zIndex = String(10 + i);
-      if (peek) el.style.opacity = "1";
     });
+  }
+
+  function spawnScraps() {
+    const box = $("scraps");
+    box.innerHTML = "";
+    if (reduced()) return;
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const img = document.createElement("img");
+      img.className = "scrap";
+      img.src = "assets/ui/scrap_" + (i % 4) + ".png?v=" + ASSET_V;
+      img.alt = "";
+      const angle = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = 70 + Math.random() * 70;
+      img.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+      img.style.setProperty("--dy", Math.sin(angle) * dist - 20 + "px");
+      img.style.setProperty("--r0", (Math.random() * 40 - 20) + "deg");
+      img.style.setProperty("--r1", (80 + Math.random() * 200) + "deg");
+      img.style.animationDelay = (i * 18) + "ms";
+      box.appendChild(img);
+    }
   }
 
   async function startOpening() {
     clearOpening();
     const raw = LLCData.pullPack();
     const pulls = LLCStorage.addPulls(raw);
-    opening = { pulls, index: 0, phase: "pack", busy: false };
-    show("opening");
+    opening = { pulls, index: 0, phase: "pack", busy: true, queued: false };
+    await show("opening");
 
     const pack = $("pack-live");
     pack.hidden = false;
@@ -133,11 +244,9 @@
       await ripAndDeal();
       return;
     }
-    /* Auto-start the shake/rip after a short beat if the user already clicked
-       from the shop — the pack on this screen is the same click target. */
     pack.classList.add("shaking");
     $("opening-caption").textContent = "";
-    await wait(560);
+    await wait(920);
     pack.classList.remove("shaking");
     await ripAndDeal();
   }
@@ -151,73 +260,110 @@
     } else {
       $("pack-live-img").hidden = true;
       rip.hidden = false;
-      /* force reflow then rip */
       void rip.offsetWidth;
       rip.classList.add("ripping");
-      await wait(720);
+      spawnScraps();
+      await wait(900);
       pack.hidden = true;
       rip.hidden = true;
+      $("scraps").innerHTML = "";
     }
 
     const stack = $("card-stack");
     stack.hidden = false;
     stack.innerHTML = "";
     opening.stackEls = [];
-    opening.pulls.forEach((p, i) => {
+    opening.pulls.forEach((p) => {
       const el = LLCFoil.createCard(p.card, { foil: p.foil, face: "back" });
       el.classList.add("lg", "is-back");
+      el.style.opacity = "0";
+      el.style.transform = "translateY(28px) scale(0.92)";
       stack.appendChild(el);
       opening.stackEls.push(el);
     });
-    layoutStack(stack, opening.stackEls, true);
+    /* Cards slide into a peek stack with a little bounce. */
+    await wait(30);
+    layoutStack(stack, opening.stackEls);
+    opening.stackEls.forEach((el, i) => {
+      el.style.transition = reduced()
+        ? "opacity 0.15s linear"
+        : "transform 0.45s cubic-bezier(0.22, 1.25, 0.32, 1) " + (i * 50) + "ms, opacity 0.3s ease " + (i * 50) + "ms";
+      el.style.opacity = "1";
+    });
+    await wait(reduced() ? 80 : 450 + opening.stackEls.length * 50);
     opening.phase = "stack";
+    opening.busy = false;
     $("opening-caption").textContent = "tap to flip  ·  1 / " + opening.pulls.length;
+    if (opening.queued) {
+      opening.queued = false;
+      revealNext();
+    }
   }
 
   async function revealNext() {
-    if (!opening || opening.busy) return;
-    if (opening.phase === "done") return;
-    if (opening.phase === "pack") return;
+    if (!opening) return;
+    if (opening.phase === "done" || opening.phase === "fly" || opening.phase === "pack") return;
+    if (opening.busy) {
+      opening.queued = true;
+      return;
+    }
     if (opening.phase === "hold") {
       await advanceFromHold();
       return;
     }
     if (opening.phase !== "stack" && opening.phase !== "ready") return;
     opening.busy = true;
+    opening.queued = false;
 
     const i = opening.index;
     const p = opening.pulls[i];
     const stack = $("card-stack");
-    const reveal = $("reveal-wrap");
+    const wrap = $("reveal-wrap");
+    const holder = $("reveal-card");
     const el = opening.stackEls[i];
 
-    /* Move the top of the remaining stack into the reveal layer and flip. */
     stack.hidden = true;
-    reveal.hidden = false;
-    reveal.innerHTML = "";
-    reveal.appendChild(el);
-    el.style.transform = "";
+    wrap.hidden = false;
+    holder.innerHTML = "";
+    hideBadges();
+    el.style.transition = "";
+    el.style.transform = "translateY(18px) scale(0.96)";
+    el.style.opacity = "1";
     el.style.zIndex = "15";
+    holder.appendChild(el);
+    await wait(20);
+    el.style.transition = reduced()
+      ? "transform 0.12s linear"
+      : "transform 0.35s cubic-bezier(0.22, 1.2, 0.32, 1)";
+    el.style.transform = "translateY(0) scale(1)";
+    await wait(reduced() ? 40 : 280);
 
-    await wait(reduced() ? 30 : 80);
     LLCFoil.flip(el, true);
+    el.classList.add("just-flipped");
+    setTimeout(() => el.classList.remove("just-flipped"), 520);
 
     $("opening-caption").textContent =
       (i + 1) + " / " + opening.pulls.length + "  ·  " + p.card.name;
 
+    await wait(reduced() ? 40 : 380);
+
     if (p.foil) {
       $("foil-tag").hidden = false;
       $("foil-tag").classList.add("show");
-      await wait(p.wasNew ? 400 : 900);
+      el.classList.add("sweeping");
+      await wait(p.wasNew ? 280 : 700);
     }
     if (p.wasNew) {
       $("new-pop").hidden = false;
+      void $("new-pop").offsetWidth;
       $("new-pop").classList.add("show");
-      await wait(900);
+      await wait(700);
     }
 
     opening.phase = "hold";
     opening.busy = false;
+    /* Clicks during the flip do not skip the hold — the player should see the card. */
+    opening.queued = false;
     $("opening-caption").textContent =
       (i + 1 === opening.pulls.length ? "tap to file into the binder" : "tap for the next card")
       + "  ·  " + (i + 1) + " / " + opening.pulls.length;
@@ -226,80 +372,118 @@
   async function advanceFromHold() {
     if (!opening || opening.busy) return;
     opening.busy = true;
-    $("new-pop").hidden = true;
-    $("new-pop").classList.remove("show", "hold");
-    $("foil-tag").hidden = true;
-    $("foil-tag").classList.remove("show", "hold");
+    hideBadges();
 
-    const reveal = $("reveal-wrap");
+    const holder = $("reveal-card");
     const stack = $("card-stack");
-    /* Park the revealed card off to the side? Just hide it; remaining stack comes back. */
-    const doneEl = reveal.firstElementChild;
+    const doneEl = holder.firstElementChild;
     if (doneEl) {
+      doneEl.classList.remove("sweeping", "just-flipped");
       doneEl.remove();
       opening.revealed = (opening.revealed || []).concat([doneEl]);
     }
-    reveal.innerHTML = "";
-    reveal.hidden = true;
+    holder.innerHTML = "";
+    $("reveal-wrap").hidden = true;
 
     opening.index += 1;
     if (opening.index >= opening.pulls.length) {
       await flyToBinder();
-      opening.busy = false;
       return;
     }
 
-    /* Remaining face-down cards */
     const left = opening.stackEls.slice(opening.index);
     stack.innerHTML = "";
-    left.forEach((el) => stack.appendChild(el));
-    layoutStack(stack, left, true);
+    left.forEach((el) => {
+      el.style.transition = "";
+      stack.appendChild(el);
+    });
+    layoutStack(stack, left);
     stack.hidden = false;
     opening.phase = "stack";
     opening.busy = false;
     $("opening-caption").textContent = "tap to flip  ·  " + (opening.index + 1) + " / " + opening.pulls.length;
+    if (opening.queued) {
+      opening.queued = false;
+      revealNext();
+    }
+  }
+
+  function flyArc(el, from, to, duration) {
+    el.style.position = "fixed";
+    el.style.left = from.left + "px";
+    el.style.top = from.top + "px";
+    el.style.width = from.width + "px";
+    el.style.height = from.height + "px";
+    el.style.margin = "0";
+    el.style.zIndex = "50";
+    el.style.pointerEvents = "none";
+    const x1 = to.left + to.width / 2 - from.width / 2 - from.left;
+    const y1 = to.top + to.height / 2 - from.height / 2 - from.top;
+    const cx = x1 * 0.45 + (x1 > 0 ? -90 : 90);
+    const cy = Math.min(y1 * 0.35, 0) - 150;
+    const start = performance.now();
+    return new Promise((res) => {
+      function frame(t) {
+        const p = Math.min(1, (t - start) / duration);
+        const e = 1 - Math.pow(1 - p, 3);
+        const x = 2 * (1 - e) * e * cx + e * e * x1;
+        const y = 2 * (1 - e) * e * cy + e * e * y1;
+        const s = 1 - e * 0.92;
+        const rot = e * 20;
+        el.style.transform = "translate(" + x + "px," + y + "px) scale(" + s + ") rotate(" + rot + "deg)";
+        el.style.opacity = String(1 - e);
+        if (p < 1) requestAnimationFrame(frame);
+        else res();
+      }
+      requestAnimationFrame(frame);
+    });
   }
 
   async function flyToBinder() {
     opening.phase = "fly";
+    opening.busy = true;
     $("opening-caption").textContent = "";
     const target = $("fly-target");
     target.classList.add("visible");
-    const reveal = $("reveal-wrap");
-    reveal.hidden = false;
-    reveal.innerHTML = "";
+    const wrap = $("reveal-wrap");
+    const holder = $("reveal-card");
+    wrap.hidden = false;
+    holder.innerHTML = "";
+    hideBadges();
 
-    const els = (opening.revealed || []).slice();
-    /* Recreate compact face-up cards for the flight, since we detached them. */
     const flyers = opening.pulls.map((p) => {
       const el = LLCFoil.createCard(p.card, { foil: p.foil, face: "front" });
       el.classList.add("md");
-      el.style.position = "absolute";
-      el.style.transition = reduced() ? "opacity 0.25s ease" : "transform 0.7s ease, opacity 0.7s ease";
-      reveal.appendChild(el);
+      holder.appendChild(el);
       return el;
     });
 
-    /* Fan them briefly, then fly toward the binder tab. */
+    /* Brief fan, then each card arcs into the binder one by one. */
     flyers.forEach((el, i) => {
-      const off = (i - (flyers.length - 1) / 2) * 28;
-      el.style.transform = "translate(" + off + "px, 0) scale(0.42) rotate(" + (off * 0.08) + "deg)";
+      const off = (i - (flyers.length - 1) / 2) * 36;
+      el.style.position = "relative";
+      el.style.transform = "translate(" + off + "px, 0) scale(0.7) rotate(" + (off * 0.08) + "deg)";
+      el.style.transition = reduced() ? "opacity 0.2s linear" : "transform 0.4s cubic-bezier(0.22, 1.15, 0.32, 1)";
     });
-    await wait(reduced() ? 80 : 500);
+    await wait(reduced() ? 80 : 420);
 
-    const tr = target.getBoundingClientRect();
-    const rr = reveal.getBoundingClientRect();
-    const tx = tr.left + tr.width / 2 - (rr.left + rr.width / 2);
-    const ty = tr.top + tr.height / 2 - (rr.top + rr.height / 2);
-    flyers.forEach((el, i) => {
-      el.style.transform = "translate(" + tx + "px, " + ty + "px) scale(0.08)";
-      el.style.opacity = "0";
-      el.style.transitionDelay = (reduced() ? 0 : i * 70) + "ms";
-    });
-    await wait(reduced() ? 200 : 900);
+    if (reduced()) {
+      flyers.forEach((el) => { el.style.opacity = "0"; });
+      await wait(200);
+    } else {
+      const tr = target.getBoundingClientRect();
+      const jobs = [];
+      for (let i = 0; i < flyers.length; i++) {
+        const el = flyers[i];
+        const from = el.getBoundingClientRect();
+        jobs.push(wait(i * 160).then(() => flyArc(el, from, tr, 620)));
+      }
+      await Promise.all(jobs);
+      await wait(80);
+    }
     target.classList.remove("visible");
     opening.phase = "done";
-    show("binder");
+    await show("binder");
     clearOpening();
   }
 
@@ -317,8 +501,8 @@
   });
 
   $("btn-shop-back").addEventListener("click", () => show("map"));
-  $("btn-map-binder").addEventListener("click", () => { lastScreen = "map"; show("binder"); });
-  $("btn-shop-binder").addEventListener("click", () => { lastScreen = "shop"; show("binder"); });
+  $("btn-map-binder").addEventListener("click", () => show("binder"));
+  $("btn-shop-binder").addEventListener("click", () => show("binder"));
   $("btn-binder-back").addEventListener("click", () => show(lastScreen || "shop"));
 
   $("btn-reset").addEventListener("click", confirmReset);
@@ -328,15 +512,23 @@
   $("pack-locked-a").addEventListener("click", () => alert("Coming soon."));
   $("pack-locked-b").addEventListener("click", () => alert("Coming soon."));
 
-  $("opening-stage").addEventListener("click", () => {
-    if (!opening || opening.busy) return;
-    if (opening.phase === "stack") revealNext();
-    else if (opening.phase === "hold") revealNext();
+  function onOpeningAdvance() {
+    if (!opening) return;
+    if (opening.phase === "done" || opening.phase === "fly" || opening.phase === "pack" || opening.phase === "shot") return;
+    if (opening.busy) {
+      /* Queue at most one advance, and never skip a just-revealed card. */
+      if (opening.phase === "hold") opening.queued = true;
+      return;
+    }
+    revealNext();
+  }
+  $("opening-stage").addEventListener("click", onOpeningAdvance);
+  $("opening-stage").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpeningAdvance(); }
   });
 
   /* ---------- debug / screenshot staging ---------- */
   function seedCollectionForShot() {
-    /* A mixed binder: some owned, some foil, some missing. */
     const data = LLCStorage.empty();
     const foilIds = new Set(["stick_runner", "lord_of_lines", "erase"]);
     const owned = ["dot_dummy", "stick_runner", "erase", "quick_sketch", "box_knight", "lord_of_lines"];
@@ -348,21 +540,20 @@
 
   async function stageShot(name) {
     document.body.classList.add("shot");
-    if (name === "title") { show("title"); return; }
-    if (name === "map") { show("map"); return; }
-    if (name === "shop") { show("shop"); return; }
-    if (name === "battle") { show("map"); $("modal-battle").classList.add("open"); return; }
-    if (name === "binder") { seedCollectionForShot(); show("binder"); return; }
+    if (name === "title") { await show("title", { instant: true }); return; }
+    if (name === "map") { await show("map", { instant: true }); return; }
+    if (name === "shop") { await show("shop", { instant: true }); return; }
+    if (name === "battle") { await show("map", { instant: true }); $("modal-battle").classList.add("open"); return; }
+    if (name === "binder") {
+      seedCollectionForShot();
+      await show("binder", { instant: true });
+      $("binder-book").classList.add("opened");
+      return;
+    }
 
-    /* opening / new / foil — run a deterministic pull after wiping collection so the first cards are NEW. */
     LLCStorage.reset();
     if (name === "opening" || name === "mid" || name === "new" || name === "foil") {
-      /* Force a known pack via a seeded RNG already in the URL, or a fallback seed. */
-      if (!LLCData.params().get("seed")) {
-        /* install a local override by rewriting pull temporarily */
-      }
-      show("opening");
-      /* Build a known 5-card pull for clean screenshots. */
+      await show("opening", { instant: true });
       const picks = [
         { id: "dot_dummy", foil: name === "foil" || LLCData.forceFoil() },
         { id: "lord_of_lines", foil: true },
@@ -371,37 +562,34 @@
         { id: "squiggle_worm", foil: LLCData.forceFoil() },
       ].map((p) => ({ id: p.id, card: LLCData.BY_ID[p.id], foil: p.foil }));
       const pulls = LLCStorage.addPulls(picks);
-      opening = { pulls, index: 0, phase: "pack", busy: false, stackEls: [] };
+      opening = { pulls, index: 0, phase: "pack", busy: false, queued: false, stackEls: [] };
 
       if (name === "opening") {
-        /* Mid-rip: show tearing pack + peek of the stack. */
         const pack = $("pack-live");
         pack.hidden = false;
         $("pack-live-img").hidden = true;
         const rip = $("pack-rip");
         rip.hidden = false;
         rip.classList.add("ripping");
-        /* freeze mid-animation */
         rip.querySelector(".rip-top").style.animation = "none";
         rip.querySelector(".rip-bottom").style.animation = "none";
-        rip.querySelector(".rip-top").style.transform = "translateY(-28%) rotate(-6deg)";
-        rip.querySelector(".rip-bottom").style.transform = "translateY(18%) rotate(4deg)";
-        const stack = $("card-stack");
-        stack.hidden = false;
-        pulls.forEach((p) => {
-          const el = LLCFoil.createCard(p.card, { foil: p.foil, face: "back" });
-          el.classList.add("md", "is-back");
-          stack.appendChild(el);
-          opening.stackEls.push(el);
+        rip.querySelector(".rip-top").style.transform = "translateY(-22%) rotate(-6deg)";
+        rip.querySelector(".rip-bottom").style.transform = "translateY(14%) rotate(4deg)";
+        spawnScraps();
+        $("scraps").querySelectorAll(".scrap").forEach((s, i) => {
+          s.style.animation = "none";
+          s.style.opacity = "1";
+          s.style.width = "18px";
+          const angle = (i / 7) * Math.PI * 2;
+          s.style.transform = "translate(" + (Math.cos(angle) * 28) + "px," + (Math.sin(angle) * 22 - 8) + "px) rotate(" + (i * 28) + "deg)";
         });
-        layoutStack(stack, opening.stackEls, true);
+        /* Keep the mid-rip still centered: do not also show the card stack. */
+        $("card-stack").hidden = true;
         $("opening-caption").textContent = "";
         opening.phase = "shot";
         return;
       }
 
-      /* Build the stack then reveal the first card (dot dummy, NEW, maybe foil). */
-      const stack = $("card-stack");
       pulls.forEach((p) => {
         const el = LLCFoil.createCard(p.card, { foil: p.foil, face: "back" });
         el.classList.add("lg", "is-back");
@@ -417,8 +605,6 @@
         freezeTilt();
         opening.phase = "shot";
       } else if (name === "foil") {
-        /* Reveal lord of lines as a foil? First pick was set foil for foil shot (dot dummy foil + NEW).
-           Better: show lord of lines, the guaranteed foil, with FOIL! and NEW! */
         opening.index = 1;
         await revealNext();
         $("foil-tag").classList.add("hold");
@@ -450,12 +636,11 @@
   if (shot) {
     stageShot(shot);
   } else if (screen && screens[screen]) {
-    show(screen);
+    show(screen, { instant: true });
   } else {
-    show("title");
+    show("title", { instant: true });
   }
 
-  /* Public hook for capture scripts. */
   window.LLC = {
     show, startOpening, renderBinder, confirmReset, stageShot,
     get opening() { return opening; },

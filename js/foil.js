@@ -82,22 +82,24 @@
     const el = document.createElement("div");
     el.className = "llc-card" + (foil ? " is-foil" : "") + (face === "back" ? " is-back" : "");
     el.dataset.id = card.id;
-    const mask = 'url("assets/masks/' + card.id + '.png")';
-    el.style.setProperty("--card-mask", mask);
     const alt = card.name || card.id;
+    const v = (window.LLC_ASSET_V || "4");
+    const mask = 'url("assets/masks/' + card.id + '.png?v=' + v + '")';
+    el.style.setProperty("--card-mask", mask);
     el.innerHTML =
       '<div class="llc-card-3d">' +
         '<div class="face front">' +
-          '<img class="print" src="assets/cards/' + card.id + '.png" alt="' + alt + '" draggable="false">' +
+          '<img class="print" src="assets/cards/' + card.id + '.png?v=' + v + '" alt="' + alt + '" draggable="false">' +
           '<div class="foil" aria-hidden="true"></div>' +
           '<div class="glare" aria-hidden="true"></div>' +
+          '<div class="foil-sweep" aria-hidden="true"></div>' +
         "</div>" +
         '<div class="face back">' +
-          '<img src="assets/card_back.png" alt="" draggable="false">' +
+          '<img src="assets/card_back.png?v=' + v + '" alt="" draggable="false">' +
         "</div>" +
       "</div>";
     if (foil) {
-      el.querySelectorAll(".foil, .glare").forEach((n) => {
+      el.querySelectorAll(".foil, .glare, .foil-sweep").forEach((n) => {
         n.style.webkitMaskImage = mask;
         n.style.maskImage = mask;
         n.style.webkitMaskSize = "100% 100%";
