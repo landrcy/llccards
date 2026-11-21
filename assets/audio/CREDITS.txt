@@ -1,0 +1,48 @@
+LLC Cards: audio credits
+========================
+Every sound and music track here is a downloaded audio file made by the people below.
+Nothing is synthesised in code. Files were trimmed, faded, mixed to mono where noted,
+and re-encoded to MP3 for size. Licences allow this.
+
+MUSIC
+-----
+music_map.mp3      "Utopia" from "Chiptune Loops" by MatiasVME
+                   Licence: CC0 1.0 (public domain)
+                   https://opengameart.org/content/chiptune-loops-0
+music_battle.mp3   "March" from "Chiptune Loops" by MatiasVME
+                   Licence: CC0 1.0 (public domain)
+                   https://opengameart.org/content/chiptune-loops-0
+
+SOUND EFFECTS
+-------------
+rip.mp3            paper_ripped_-_1.mp3, "Various Paper Sound Effects" by Luckius
+                   Licence: CC0 1.0. https://opengameart.org/content/various-paper-sound-effects
+
+From "Casino Audio" by Kenney (www.kenney.nl). Licence: CC0 1.0
+https://kenney.nl/assets/casino-audio
+  shake.mp3   card-shuffle.ogg (first 0.9 s, faded out)
+  flip.mp3    card-fan-1.ogg
+  slide.mp3   card-slide-3.ogg
+  thump.mp3   card-shove-2.ogg
+  place.mp3   card-place-2.ogg
+
+From "Interface Sounds" by Kenney (www.kenney.nl). Licence: CC0 1.0
+https://kenney.nl/assets/interface-sounds
+  click.mp3   click_002.ogg
+  drain.mp3   minimize_003.ogg
+  cast.mp3    maximize_006.ogg
+  foil.mp3    glass_004.ogg
+  nope.mp3    error_004.ogg
+
+From "Impact Sounds" by Kenney (www.kenney.nl). Licence: CC0 1.0
+https://kenney.nl/assets/impact-sounds
+  hit.mp3     impactPunch_medium_001.ogg
+
+From "Music Jingles" by Kenney (www.kenney.nl). Licence: CC0 1.0
+https://kenney.nl/assets/music-jingles
+  new.mp3     jingles_NES03.ogg
+  win.mp3     jingles_NES12.ogg
+  lose.mp3    jingles_NES11.ogg
+  match.mp3   jingles_NES09.ogg
+
+CC0 needs no credit, but thank you Kenney, MatiasVME and Luckius.

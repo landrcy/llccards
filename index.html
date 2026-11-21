@@ -5,11 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>LLC Cards</title>
   <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="stylesheet" href="css/game.css?v=4">
+  <meta name="description" content="LLC Cards: a scribbly black-and-white trading card game. Open packs, fill your binder, duel bots or friends online.">
+  <meta property="og:title" content="LLC Cards">
+  <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
+  <meta property="og:url" content="https://landrcy.github.io/llccards/">
+  <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
+  <link rel="stylesheet" href="css/game.css?v=5">
+  <link rel="stylesheet" href="css/duel.css?v=5">
 </head>
 <body>
-  <div id="wipe" class="wipe" aria-hidden="true"></div>
-
+  
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
     <img class="logo" src="assets/logo.png?v=4" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
@@ -17,24 +22,24 @@
 
   <section id="screen-map" class="screen" aria-label="The map">
     <div class="topbar">
+      <div class="tb-l"></div>
       <h1>THE MAP</h1>
-      <div class="spacer"></div>
-      <button type="button" id="btn-map-binder">Binder</button>
+      <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
       <img class="map" src="assets/map.png?v=4" alt="Hand-drawn map with a shop and a battle arena" width="1024" height="704">
       <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
-      <button type="button" class="hotspot" id="hot-battle" aria-label="Battle, coming soon"></button>
+      <button type="button" class="hotspot" id="hot-battle" aria-label="Battle arena"></button>
     </div>
-    <p class="map-hint">tap the shop to buy packs</p>
+    <p class="map-hint">shop for packs  ·  battle in the arena</p>
+    <button type="button" class="credits-btn" id="btn-credits">credits</button>
   </section>
 
   <section id="screen-shop" class="screen" aria-label="The shop">
     <div class="topbar">
-      <button type="button" id="btn-shop-back">Map</button>
+      <div class="tb-l"><button type="button" id="btn-shop-back">Map</button></div>
       <h1>THE SHOP</h1>
-      <div class="spacer"></div>
-      <button type="button" id="btn-shop-binder">Binder</button>
+      <div class="tb-r"><button type="button" id="btn-shop-binder">Binder</button></div>
     </div>
     <div class="shelf" id="shelf">
       <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
@@ -65,17 +70,14 @@
         </div>
         <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
-      <div class="card-stack" id="card-stack" hidden></div>
-      <div class="reveal-wrap" id="reveal-wrap" hidden>
-        <div class="badge-row" id="badge-row">
-          <div class="new-pop" id="new-pop" hidden>
-            <img class="burst" src="assets/ui/new_burst.png?v=4" alt="">
-            <div class="word">NEW!</div>
-          </div>
-          <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
+      <div class="badge-row" id="badge-row" hidden>
+        <div class="new-pop" id="new-pop" hidden>
+          <img class="burst" src="assets/ui/new_burst.png?v=4" alt="">
+          <div class="word">NEW!</div>
         </div>
-        <div class="reveal-card" id="reveal-card"></div>
+        <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
       </div>
+      <div class="card-stack" id="card-stack" hidden></div>
       <p class="opening-caption" id="opening-caption"></p>
     </div>
     <div class="fly-target" id="fly-target">BINDER</div>
@@ -83,31 +85,137 @@
 
   <section id="screen-binder" class="screen" aria-label="Edition One binder">
     <div class="topbar">
-      <button type="button" id="btn-binder-back">Back</button>
-      <h1>EDITION ONE BINDER</h1>
-      <div class="spacer"></div>
-      <button type="button" class="debug-reset" id="btn-reset-binder">reset collection</button>
+      <div class="tb-l"><button type="button" id="btn-binder-back">Back</button></div>
+      <h1>BINDER</h1>
+      <div class="tb-r"><button type="button" class="debug-reset" id="btn-reset-binder">reset</button></div>
     </div>
     <div class="binder-book" id="binder-book">
-      <div class="binder-cover" id="binder-cover" aria-hidden="true">
-        <img src="assets/logo.png?v=4" alt="">
-      </div>
       <div class="binder-page" id="binder-page"></div>
     </div>
     <p class="binder-count" id="binder-count"></p>
   </section>
 
-  <div class="modal" id="modal-battle" role="dialog" aria-labelledby="battle-title" aria-modal="true">
-    <div class="modal-card">
-      <h2 id="battle-title">BATTLE</h2>
-      <p>Coming soon.<br>Online and vs bots will live here, next to the shop.</p>
-      <button type="button" id="btn-battle-ok">OK</button>
+  <section id="screen-arena" class="screen" aria-label="The arena">
+    <div class="topbar">
+      <div class="tb-l"><button type="button" id="btn-arena-back">Map</button></div>
+      <h1>THE ARENA</h1>
+      <div class="tb-r"><button type="button" id="btn-arena-binder">Binder</button></div>
+    </div>
+    <div class="arena-panel sketch-box">
+      <p class="deck-line" id="deck-line"></p>
+      <div class="arena-modes" id="arena-modes">
+        <button type="button" class="big" id="btn-vs-bot">VS BOT</button>
+        <button type="button" class="big" id="btn-quick">QUICK MATCH</button>
+        <button type="button" class="big" id="btn-host">MAKE ROOM</button>
+        <div class="join-row">
+          <input id="join-code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Room code">
+          <button type="button" id="btn-join">JOIN</button>
+        </div>
+      </div>
+      <div class="arena-wait" id="arena-wait" hidden>
+        <p class="wait-title" id="wait-title">LOOKING...</p>
+        <p class="room-code" id="room-code" hidden></p>
+        <p class="wait-sub" id="wait-sub"></p>
+        <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="wait-btns">
+          <button type="button" id="btn-wait-bot" hidden>PLAY BOT INSTEAD</button>
+          <button type="button" id="btn-wait-cancel">CANCEL</button>
+        </div>
+      </div>
+      <details class="rules">
+        <summary>HOW TO PLAY</summary>
+        <ul>
+          <li>Both players start with 4000 LP. Hit 0 and you lose. Run out of cards to draw and you lose.</li>
+          <li>Each turn: DRAW, MAIN, BATTLE, END. The first player skips the first draw and cannot attack turn 1.</li>
+          <li>MAIN: summon or set 1 monster per turn. 5-star monsters need 1 tribute. Cast spells, set spells and traps.</li>
+          <li>Monsters cannot attack the turn they are played (STICK RUNNER can). Change a monster's position once per turn.</li>
+          <li>BATTLE: ATK vs ATK, the weaker one is destroyed and its owner takes the difference. ATK vs DEF, the defender is destroyed if ATK is higher; if DEF is higher, the attacker's owner takes the difference.</li>
+          <li>No monsters on the other side? Attack directly.</li>
+          <li>Set traps fire on the opponent's turn when they attack.</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <section id="screen-duel" class="screen" aria-label="Duel">
+    <div class="board" id="board">
+      <div class="side opp" id="side-opp">
+        <div class="hand-row opp-hand" id="opp-hand"></div>
+        <div class="zone-row" id="opp-sz"></div>
+        <div class="zone-row" id="opp-mz"></div>
+      </div>
+      <div class="mid sketch-box" id="duel-mid">
+        <div class="lp opp-lp"><span class="who" id="opp-name">BOT</span><span class="num" id="opp-lp">4000</span></div>
+        <div class="mid-center">
+          <div class="phases" id="phases">
+            <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
+          </div>
+          <p class="duel-log" id="duel-log"></p>
+        </div>
+        <div class="lp my-lp"><span class="who">YOU</span><span class="num" id="my-lp">4000</span></div>
+      </div>
+      <div class="side mine" id="side-me">
+        <div class="zone-row" id="my-mz"></div>
+        <div class="zone-row" id="my-sz"></div>
+        <div class="hand-row my-hand" id="my-hand"></div>
+      </div>
+      <div class="duel-actions">
+        <button type="button" id="btn-menu" class="small">MENU</button>
+        <button type="button" id="btn-next" class="next">BATTLE &gt;</button>
+      </div>
+    </div>
+    <div class="banner" id="duel-banner" hidden>
+      <p id="banner-text"></p>
+      <div class="banner-btns" id="banner-btns"></div>
+    </div>
+    <div class="sheet" id="duel-sheet" hidden>
+      <div class="sheet-inner sketch-box">
+        <div class="sheet-card" id="sheet-card"></div>
+        <div class="sheet-side">
+          <p class="sheet-info" id="sheet-info"></p>
+          <div class="sheet-btns" id="sheet-btns"></div>
+        </div>
+      </div>
+    </div>
+    <div class="float-layer" id="float-layer" aria-hidden="true"></div>
+    <div class="over" id="duel-over" hidden>
+      <div class="over-box sketch-box">
+        <h2 id="over-title">YOU WIN</h2>
+        <p id="over-sub"></p>
+        <div class="over-btns">
+          <button type="button" id="btn-rematch">REMATCH</button>
+          <button type="button" id="btn-over-back">ARENA</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <button type="button" class="mute-btn" id="btn-mute" aria-label="Sound on"><img src="assets/ui/sound_on.png" alt=""></button>
+
+  <div class="modal" id="modal-credits" role="dialog" aria-labelledby="credits-title" aria-modal="true">
+    <div class="modal-card credits-card">
+      <h2 id="credits-title">CREDITS</h2>
+      <div class="credits-body">
+        <p><b>Game, cards and art</b><br>Finley's LLC logo and card back. Card art and UI drawn for LLC Cards.</p>
+        <p><b>Font</b><br>Bagel Fat One by Kyungwon Kim and JAMO (SIL OFL 1.1).</p>
+        <p><b>Music</b><br>"Utopia" and "March" from Chiptune Loops by MatiasVME (CC0), opengameart.org.</p>
+        <p><b>Sounds</b><br>Casino Audio, Interface Sounds, Impact Sounds and Music Jingles by Kenney (CC0), kenney.nl.<br>Paper rip from Various Paper Sound Effects by Luckius (CC0), opengameart.org.</p>
+        <p><b>Online play</b><br>PeerJS (MIT) and the free PeerJS cloud server.</p>
+        <p class="credits-file">Full list: assets/audio/CREDITS.txt</p>
+      </div>
+      <button type="button" id="btn-credits-ok">OK</button>
     </div>
   </div>
 
-  <script src="js/data.js?v=4"></script>
-  <script src="js/storage.js?v=4"></script>
-  <script src="js/foil.js?v=4"></script>
-  <script src="js/game.js?v=4"></script>
+  <script src="js/audio.js?v=5"></script>
+  <script src="js/data.js?v=5"></script>
+  <script src="js/storage.js?v=5"></script>
+  <script src="js/foil.js?v=5"></script>
+  <script src="js/engine.js?v=5"></script>
+  <script src="js/ai.js?v=5"></script>
+  <script src="js/vendor/peerjs.min.js?v=5"></script>
+  <script src="js/net.js?v=5"></script>
+  <script src="js/game.js?v=5"></script>
+  <script src="js/duel.js?v=5"></script>
 </body>
 </html>
