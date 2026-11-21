@@ -1,8 +1,8 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "10"; window.LLC_ASSET_V = ASSET_V;
-  const reduced = () =>
+  const ASSET_V = "12"; window.LLC_ASSET_V = ASSET_V;
+  const reduced = () => (window.LLCStorage && LLCStorage.flags().instant) ||
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const screens = {
@@ -13,9 +13,11 @@
     binder: $("screen-binder"),
     arena: $("screen-arena"),
     duel: $("screen-duel"),
+    decks: $("screen-decks"),
   };
 
   let lastScreen = "map";
+  let decksFrom = "binder";
   let currentScreen = null;
   let opening = null; // { pulls, index, phase, busy, queued }
 
@@ -39,9 +41,12 @@
     }
     const prev = currentScreen;
     if (name === "binder") renderBinder();
+    if (name !== "binder") closeZoom();
     fadeScreens(name);
     currentScreen = name;
-    if (name !== "opening" && name !== "binder" && name !== "duel") lastScreen = name;
+    if (name === "decks") { decksFrom = prev === "decks" ? decksFrom : prev; if (window.LLCDecks) LLCDecks.render(); }
+    if (name === "binder") { const sc = $("binder-scroll"); if (prev !== "binder") sc.scrollTop = 0; setTimeout(() => { try { sc.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0); }
+    if (name !== "opening" && name !== "binder" && name !== "duel" && name !== "decks") lastScreen = name;
     if (name === "binder" && prev === "opening") lastScreen = "shop";
     window.scrollTo(0, 0);
     document.body.classList.toggle("in-duel", name === "duel");
@@ -133,12 +138,17 @@
         const el = LLCFoil.createCard(card, { foil: !!rec.foil, face: "front" });
         el.classList.add("sm");
         slot.appendChild(el);
+        slot.dataset.id = card.id;
+        slot.tabIndex = 0;
+        slot.setAttribute("role", "button");
+        slot.setAttribute("aria-label", card.name + ": look closer");
         if ((rec.n || 1) > 1) { const n = document.createElement("span"); n.className = "copies"; n.textContent = "x" + rec.n; slot.appendChild(n); }
       } else {
         const q = document.createElement("div");
         q.className = "q";
         q.innerHTML = '<span class="qn">#' + String(i + 1).padStart(2, "0") + '</span><span class="qq">?</span><span class="qr">' + LLCData.RARITY_NAME[card.rarity] + "</span>";
         slot.appendChild(q);
+        slot.title = "not found yet";
       }
       page.appendChild(slot);
     });
@@ -146,6 +156,67 @@
     $("binder-count").textContent = owned + " / " + LLCData.CARDS.length + "   ·   " +
       LLCData.RARITY_ORDER.map((r) => r + " " + (byR[r] || 0) + "/" + tot(r)).join("   ");
   }
+  /* ---------- binder close-up ---------- */
+  let zoomIds = [], zoomAt = -1, zoomEl = null;
+  function ownedShown() { return Array.from($("binder-page").querySelectorAll(".binder-slot[data-id]")).map((n) => n.dataset.id); }
+  function openZoom(id) {
+    zoomIds = ownedShown();
+    zoomAt = zoomIds.indexOf(id);
+    if (zoomAt < 0) return;
+    $("card-zoom").hidden = false;
+    paintZoom();
+    LLCAudio.play && LLCAudio.play("flip");
+  }
+  function paintZoom() {
+    const id = zoomIds[zoomAt];
+    const card = LLCData.BY_ID[id];
+    const rec = LLCStorage.record(id) || {};
+    const box = $("zoom-card");
+    box.innerHTML = "";
+    zoomEl = LLCFoil.createCard(card, { foil: !!rec.foil, face: "front" });
+    zoomEl.classList.add("zoomed");
+    box.appendChild(zoomEl);
+    $("zoom-name").textContent = card.name;
+    $("zoom-rar").textContent = LLCData.RARITY_NAME[card.rarity] + (rec.foil ? "  ·  FOIL" : "");
+    $("zoom-rar").className = "zoom-rar r-" + card.rarity;
+    $("zoom-meta").textContent = card.kind === "monster"
+      ? card.stars + "★  " + card.type + " MONSTER  ·  ATK " + card.atk + " / DEF " + card.def
+      : (card.sub && card.sub !== "normal" ? card.sub.toUpperCase() + " " : "") + card.kind.toUpperCase();
+    $("zoom-text").textContent = card.effect || "";
+    $("zoom-own").textContent = "YOU OWN: x" + (rec.n || 1) + "   ·   DECK MAX: " + LLCEngine.copyCap(card);
+    $("zoom-pos").textContent = (zoomAt + 1) + " / " + zoomIds.length + "   ·   arrows or swipe for more";
+    $("zoom-prev").disabled = zoomIds.length < 2; $("zoom-next").disabled = zoomIds.length < 2;
+  }
+  function stepZoom(d) { if (zoomAt < 0 || zoomIds.length < 2) return; zoomAt = (zoomAt + d + zoomIds.length) % zoomIds.length; paintZoom(); }
+  function closeZoom() { if ($("card-zoom").hidden) return; $("card-zoom").hidden = true; $("zoom-card").innerHTML = ""; zoomAt = -1; }
+  $("binder-page").addEventListener("click", (e) => {
+    const slot = e.target.closest(".binder-slot");
+    if (!slot) return;
+    if (slot.dataset.id) openZoom(slot.dataset.id);
+    else { slot.classList.remove("nope"); void slot.offsetWidth; slot.classList.add("nope"); }
+  });
+  $("binder-page").addEventListener("keydown", (e) => {
+    const slot = e.target.closest && e.target.closest(".binder-slot[data-id]");
+    if (slot && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openZoom(slot.dataset.id); }
+  });
+  $("zoom-x").addEventListener("click", closeZoom);
+  $("zoom-prev").addEventListener("click", (e) => { e.stopPropagation(); stepZoom(-1); });
+  $("zoom-next").addEventListener("click", (e) => { e.stopPropagation(); stepZoom(1); });
+  $("card-zoom").addEventListener("click", (e) => { if (!e.target.closest(".zoom-card, .zoom-info, .zoom-nav")) closeZoom(); });
+  document.addEventListener("keydown", (e) => {
+    if ($("card-zoom").hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeZoom(); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); stepZoom(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); stepZoom(-1); }
+  }, true);
+  let swipe = null;
+  $("card-zoom").addEventListener("touchstart", (e) => { const t = e.touches[0]; swipe = { x: t.clientX, y: t.clientY }; }, { passive: true });
+  $("card-zoom").addEventListener("touchend", (e) => {
+    if (!swipe) return;
+    const t = e.changedTouches[0]; const dx = t.clientX - swipe.x, dy = t.clientY - swipe.y; swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) stepZoom(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
   $("binder-filter").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
@@ -157,7 +228,7 @@
   /* ---------- shop ---------- */
   function pct(x) { const v = x * 100; return (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + "%"; }
   function renderShop() {
-    $("ink-count").textContent = LLCStorage.ink();
+    $("ink-count").textContent = LLCStorage.inkLabel();
     const cost = LLCData.PACKS.super_rare.cost;
     $("sr-cost").textContent = cost;
     $("pack-sr").classList.toggle("broke", LLCStorage.ink() < cost);
@@ -269,8 +340,11 @@
   async function startOpening(packId) {
     clearOpening();
     packId = packId || "edition_one";
-    const raw = LLCData.pullPack(null, packId);
+    const fl = LLCStorage.flags();
+    const raw = LLCData.pullPack(null, packId, { force: fl.force || null, allFoil: !!fl.allFoil });
+    if (fl.force) LLCStorage.setFlag("force", null);
     const pulls = LLCStorage.addPulls(raw);
+    window.__lastPulls = raw.map((r) => r.rarity);
     opening = { pulls, packId, index: 0, phase: "pack", busy: true, queued: false, flipped: false, stackEls: [], seen: [] };
     await show("opening");
     const sr = packId === "super_rare";
@@ -490,6 +564,9 @@
   $("btn-map-binder").addEventListener("click", () => show("binder"));
   $("btn-shop-binder").addEventListener("click", () => show("binder"));
   $("btn-binder-back").addEventListener("click", () => show(lastScreen || "shop"));
+  $("btn-binder-decks").addEventListener("click", () => show("decks"));
+  $("btn-decks-back").addEventListener("click", () => show(decksFrom && decksFrom !== "opening" && decksFrom !== "duel" ? decksFrom : "binder"));
+  $("btn-decks-arena").addEventListener("click", () => show("arena"));
 
   $("btn-reset").addEventListener("click", confirmReset);
   $("btn-reset-binder").addEventListener("click", confirmReset);
@@ -613,7 +690,7 @@
   }
 
   window.LLC = {
-    show, startOpening, renderBinder, renderShop, confirmReset, stageShot, tapOpening,
+    show, startOpening, renderBinder, renderShop, confirmReset, stageShot, tapOpening, openZoom, closeZoom,
     get screen() { return currentScreen; },
     get opening() { return opening; },
   };

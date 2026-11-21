@@ -119,20 +119,21 @@
   }
   /* Within a rarity, lower-star cards are a little more common. */
   const STAR_WEIGHT = { 1: 6, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 2, 8: 1 };
-  function pullPack(rng, packId) {
+  function pullPack(rng, packId, opts) {
+    opts = opts || {};
     rng = rng || makeRng();
     const P = PACKS[packId || "edition_one"];
     const foilAll = forceFoil();
     const out = [];
     for (let n = 0; n < P.size; n++) {
       const slot = P.slots[Math.min(n, P.slots.length - 1)];
-      const rar = pick(rng, slot);
+      const rar = opts.force && n === P.size - 1 ? opts.force : pick(rng, slot);
       let pool = CARDS.filter((c) => c.rarity === rar && !out.some((o) => o.id === c.id));
       if (!pool.length) pool = CARDS.filter((c) => c.rarity === rar);
       const w = {};
       pool.forEach((c) => { w[c.id] = STAR_WEIGHT[c.stars] || 1; });
       const card = BY_ID[pick(rng, w)];
-      out.push({ id: card.id, card, rarity: card.rarity, foil: !fullArt(card) && (foilAll || rng() < FOIL_CHANCE) });
+      out.push({ id: card.id, card, rarity: card.rarity, foil: !fullArt(card) && (foilAll || opts.allFoil || rng() < FOIL_CHANCE) });
     }
     return out;
   }

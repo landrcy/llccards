@@ -961,6 +961,35 @@
     });
     return deckFromCollection(coll);
   }
+  /* Custom decks: a list of card ids, limited by copies owned and the copy caps. Returns problems (empty = valid). */
+  function deckProblems(ids, collection) {
+    const set = (collection && collection.edition_one) || {};
+    const probs = [];
+    if (!Array.isArray(ids)) return ["no deck"];
+    if (ids.length !== DECK_SIZE) probs.push(ids.length + " / " + DECK_SIZE + " cards");
+    const counts = {};
+    ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
+    Object.keys(counts).forEach((id) => {
+      const c = def(id);
+      if (!c) { probs.push("unknown card"); return; }
+      const have = set[id] && set[id].owned ? set[id].n || 1 : 0;
+      if (counts[id] > have) probs.push(c.name + ": you own " + have);
+      else if (counts[id] > copyCap(c)) probs.push(c.name + ": max " + copyCap(c));
+    });
+    if (!ids.some((id) => def(id) && def(id).kind === "monster")) probs.push("needs a monster");
+    return probs;
+  }
+  /* The deck a player battles with: the active custom deck if it is valid, else the auto deck. */
+  function activeDeck(collection) {
+    const c = collection || {};
+    const i = c.activeDeck;
+    const d = Array.isArray(c.decks) && typeof i === "number" && i >= 0 ? c.decks[i] : null;
+    if (d && d.cards && !deckProblems(d.cards, c).length) {
+      const set = c.edition_one || {};
+      return { cards: d.cards.map((id) => ({ id, foil: !!(set[id] && set[id].foil) })), custom: true, name: d.name };
+    }
+    return Object.assign(deckFromCollection(c), { custom: false });
+  }
   function validDeck(list) {
     if (!Array.isArray(list) || list.length !== DECK_SIZE) return false;
     const counts = {};
@@ -973,7 +1002,7 @@
 
   global.LLCEngine = {
     START_LP, ZONES, DECK_SIZE, HAND_LIMIT, FATIGUE,
-    create, apply, view, legal, admin, deckFromCollection, botDeck, validDeck, tributesNeeded, copyCap, cardValue,
+    create, apply, view, legal, admin, deckFromCollection, botDeck, validDeck, deckProblems, activeDeck, tributesNeeded, copyCap, cardValue,
     _atkOf: atkOf, _defOf: defOf, _mon: mon,
   };
 })(typeof window !== "undefined" ? window : globalThis);

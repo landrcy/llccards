@@ -37,13 +37,13 @@
   }
 
   /* Add pulled cards. Returns the same list annotated with wasNew (before this pack). */
-  function addPulls(pulls) {
+  function addPulls(pulls, max) {
     const data = load();
     const set = data.edition_one;
     const result = pulls.map((p) => {
       const wasNew = !(set[p.id] && set[p.id].owned);
       const prev = set[p.id] || { owned: false, foil: false, n: 0 };
-      set[p.id] = { owned: true, foil: !!(prev.foil || p.foil), n: (prev.n || (prev.owned ? 1 : 0)) + 1 };
+      set[p.id] = { owned: true, foil: !!(prev.foil || p.foil), n: Math.max(prev.n || (prev.owned ? 1 : 0), 0) + (p.count || 1) };
       return Object.assign({}, p, { wasNew });
     });
     save(data);
@@ -59,7 +59,23 @@
     return Object.keys(set).filter((id) => set[id] && set[id].owned).length;
   }
 
-  function ink() { return load().ink; }
+  /* admin flags (persist in the save): inf = infinite ink, instant = instant pack opening, force = next pack's top rarity */
+  function flags() { return load().admin || {}; }
+  function setFlag(k, v) { const d = load(); d.admin = d.admin || {}; if (v == null || v === false) delete d.admin[k]; else d.admin[k] = v; save(d); document.dispatchEvent(new CustomEvent("llc:ink", { detail: { ink: ink() } })); }
+  function infinite() { return !!flags().inf; }
+  function ink() { const d = load(); return d.admin && d.admin.inf ? Infinity : d.ink; }
+  function inkLabel() { const v = ink(); return v === Infinity ? "\u221e" : String(v); }
+  function setInk(n) { const d = load(); d.ink = Math.max(0, Math.round(Number(n) || 0)); save(d); document.dispatchEvent(new CustomEvent("llc:ink", { detail: { ink: ink() } })); return d.ink; }
+  /* custom decks: 3 slots of { name, cards: [id...] }; active = slot index or -1 for the auto deck */
+  const DECK_SLOTS = 3;
+  function decks() {
+    const d = load();
+    const list = Array.isArray(d.decks) ? d.decks.slice(0, DECK_SLOTS) : [];
+    while (list.length < DECK_SLOTS) list.push({ name: "DECK " + (list.length + 1), cards: [] });
+    return { list, active: typeof d.activeDeck === "number" ? d.activeDeck : -1 };
+  }
+  function saveDeck(i, deck) { const d = load(); const cur = decks(); cur.list[i] = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40) }; d.decks = cur.list; save(d); }
+  function setActiveDeck(i) { const d = load(); d.activeDeck = i; save(d); }
   function addInk(n) {
     const data = load();
     data.ink = Math.max(0, Math.round(data.ink + n));
@@ -69,6 +85,7 @@
   }
   function spendInk(n) {
     const data = load();
+    if (data.admin && data.admin.inf) return true;
     if (data.ink < n) return false;
     data.ink -= n;
     save(data);
@@ -76,5 +93,5 @@
     return true;
   }
 
-  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, addInk, spendInk };
+  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, inkLabel, setInk, addInk, spendInk, flags, setFlag, infinite, decks, saveDeck, setActiveDeck, DECK_SLOTS };
 })(window);

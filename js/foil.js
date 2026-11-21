@@ -26,56 +26,79 @@
     }
   }
 
+  /* Pointer-follow tilt for EVERY card (smooth, time-based, eases back to flat on leave).
+     The shine layers only exist on holo / foil cards; foils also drift on an idle loop. */
   const live = new Set();
+  const TILT_X = 12, TILT_Y = 14;
 
   function bind(el) {
     if (!el || el._foilBound) return el;
     el._foilBound = true;
-    if (!el.classList.contains("is-foil")) return el;
-    setVars(el, 34, 40, false);
+    const foil = el.classList.contains("is-foil");
+    const st = { x: 50, y: 50, cx: 50, cy: 50, tx: 50, ty: 50, hover: false, foil, tilt: 0, ttilt: 0 };
+    el._tilt = st;
+    setVars(el, foil ? 34 : 50, foil ? 40 : 50, false);
     if (reduced()) return el;
-
-    let idle = true;
     function onMove(e) {
-      idle = false;
+      if (e.pointerType === "touch" && !foil) return;      // touch: commons stay flat so scrolling feels normal
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      const x = ((e.clientX - r.left) / r.width) * 100;
-      const y = ((e.clientY - r.top) / r.height) * 100;
-      setVars(el, x, y, true);
+      st.hover = true;
+      st.tx = clamp(((e.clientX - r.left) / r.width) * 100, 0, 100);
+      st.ty = clamp(((e.clientY - r.top) / r.height) * 100, 0, 100);
+      st.ttilt = 1;
+      wake();
     }
     el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerleave", () => { idle = true; });
-    el.addEventListener("pointerdown", (e) => {
-      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-    });
-    el._foilIdle = () => idle;
+    el.addEventListener("pointerenter", onMove);
+    el.addEventListener("pointerleave", () => { st.hover = false; st.tx = 50; st.ty = 50; st.ttilt = foil ? 1 : 0; wake(); });
+    el._foilIdle = () => !st.hover;
     live.add(el);
+    wake();
     return el;
   }
 
-  function unbind(el) {
-    live.delete(el);
+  function unbind(el) { live.delete(el); }
+
+  function apply(el, st) {
+    const px = st.cx, py = st.cy;
+    const hyp = clamp(Math.hypot(px - 50, py - 50) / 50, 0, 1);
+    el.style.setProperty("--pointer-x", px.toFixed(2) + "%");
+    el.style.setProperty("--pointer-y", py.toFixed(2) + "%");
+    el.style.setProperty("--background-x", px.toFixed(2) + "%");
+    el.style.setProperty("--background-y", py.toFixed(2) + "%");
+    el.style.setProperty("--pointer-from-center", hyp.toFixed(3));
+    const k = st.tilt;
+    el.style.setProperty("--rotate-x", (((py - 50) / 50) * -TILT_X * k).toFixed(2) + "deg");
+    el.style.setProperty("--rotate-y", (((px - 50) / 50) * TILT_Y * k).toFixed(2) + "deg");
   }
 
-  let raf = 0;
+  let raf = 0, last = 0;
   function tick(t) {
+    raf = 0;
     if (reduced()) return;
+    const dt = Math.min(0.05, last ? (t - last) / 1000 : 0.016);
+    last = t;
+    const f = 1 - Math.exp(-dt * 10);              // frame-rate independent easing
+    let busy = false;
     live.forEach((el) => {
       if (!el.isConnected) { live.delete(el); return; }
-      if (el._foilIdle && el._foilIdle() === false) return;
-      const a = t / 2800;
-      const x = 50 + Math.cos(a) * 32;
-      const y = 50 + Math.sin(a * 0.85) * 26;
-      setVars(el, x, y, true);
+      const st = el._tilt;
+      if (!st) return;
+      if (st.foil && !st.hover) {                  // holo idle drift
+        const a = t / 2800;
+        st.tx = 50 + Math.cos(a) * 32; st.ty = 50 + Math.sin(a * 0.85) * 26; st.ttilt = 1;
+      }
+      const dx = st.tx - st.cx, dy = st.ty - st.cy, dk = st.ttilt - st.tilt;
+      if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05 && Math.abs(dk) < 0.002 && !st.foil) return;
+      st.cx += dx * f; st.cy += dy * f; st.tilt += dk * f;
+      apply(el, st);
+      busy = true;
     });
-    raf = requestAnimationFrame(tick);
+    if (busy) raf = requestAnimationFrame(tick); else last = 0;
   }
-
-  function startIdle() {
-    if (reduced()) return;
-    if (!raf) raf = requestAnimationFrame(tick);
-  }
+  function wake() { if (!raf && !reduced()) raf = requestAnimationFrame(tick); }
+  function startIdle() { wake(); }
 
   function createCard(card, opts) {
     opts = opts || {};
@@ -86,7 +109,7 @@
     el.className = "llc-card rar-" + rar + (foil ? " is-foil" : "") + (opts.foil ? " foil-pull" : "") + (face === "back" ? " is-back" : "");
     el.dataset.id = card.id;
     const alt = card.name || card.id;
-    const v = (window.LLC_ASSET_V || "10");
+    const v = (window.LLC_ASSET_V || "12");
     const mask = 'url("assets/masks/' + card.id + '.png?v=' + v + '")';
     el.style.setProperty("--card-mask", mask);
     el.innerHTML =
@@ -111,9 +134,8 @@
         n.style.webkitMaskRepeat = "no-repeat";
         n.style.maskRepeat = "no-repeat";
       });
-      bind(el);
     }
-    startIdle();
+    bind(el);
     return el;
   }
 

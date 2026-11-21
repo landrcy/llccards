@@ -10,13 +10,13 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=10">
-  <link rel="stylesheet" href="css/duel.css?v=10">
+  <link rel="stylesheet" href="css/game.css?v=12">
+  <link rel="stylesheet" href="css/duel.css?v=12">
 </head>
 <body>
   
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png?v=10" alt="LLC Cards">
+    <img class="logo" src="assets/logo.png?v=12" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
   </section>
 
@@ -27,7 +27,7 @@
       <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map-src" id="map-src" src="assets/map.png?v=10" alt="" aria-hidden="true">
+      <img class="map-src" id="map-src" src="assets/map.png?v=12" alt="" aria-hidden="true">
       <canvas class="map-canvas" id="map-canvas" role="img" aria-label="Hand-drawn map with a shop, a trampoline battle arena and a PLAY NOW sign"></canvas>
       <div class="map-stage" id="map-stage">
         <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
@@ -35,7 +35,7 @@
         <button type="button" class="hotspot" id="hot-play" aria-label="Play now"></button>
       </div>
     </div>
-    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=10" alt="credits" width="123" height="48"></button>
+    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=12" alt="credits" width="123" height="48"></button>
   </section>
   <section id="screen-shop" class="screen" aria-label="The shop">
     <div class="topbar">
@@ -47,20 +47,20 @@
     <div class="shelf" id="shelf">
       <div class="pack-col">
         <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free.">
-          <img src="assets/pack_edition_one.png?v=10" alt="">
+          <img src="assets/pack_edition_one.png?v=12" alt="">
           <span class="label">EDITION ONE<br>5 CARDS · FREE</span>
         </button>
         <table class="rates" id="rates-edition_one" aria-label="Edition One drop rates"></table>
       </div>
       <div class="pack-col">
         <button type="button" class="pack-slot openable sr-pack" id="pack-sr" aria-label="Open a Super Rare pack for 300 ink">
-          <img src="assets/pack_super_rare.png?v=10" alt="">
+          <img src="assets/pack_super_rare.png?v=12" alt="">
           <span class="label">SUPER RARE PACK<br>3 CARDS · <span id="sr-cost">300</span> INK</span>
         </button>
         <table class="rates" id="rates-super_rare" aria-label="Super Rare pack drop rates"></table>
       </div>
       <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=10" alt="">
+        <img src="assets/pack_locked.png?v=12" alt="">
         <span class="label">PACK THREE</span>
       </button>
     </div>
@@ -72,16 +72,16 @@
   <section id="screen-opening" class="screen" aria-label="Pack opening">
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
-        <img id="pack-live-img" src="assets/pack_edition_one.png?v=10" alt="Edition One pack">
+        <img id="pack-live-img" src="assets/pack_edition_one.png?v=12" alt="Edition One pack">
         <div class="pack-rip" id="pack-rip" hidden>
-          <img class="rip-top" src="assets/pack_rip_top.png?v=10" alt="">
-          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=10" alt="">
+          <img class="rip-top" src="assets/pack_rip_top.png?v=12" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=12" alt="">
         </div>
         <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
       <div class="badge-row" id="badge-row" hidden>
         <div class="new-pop" id="new-pop" hidden>
-          <img class="burst" src="assets/ui/new_burst.png?v=10" alt="">
+          <img class="burst" src="assets/ui/new_burst.png?v=12" alt="">
           <div class="word">NEW!</div>
         </div>
         <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
@@ -95,18 +95,55 @@
   </section>
 
   <section id="screen-binder" class="screen" aria-label="Edition One binder">
-    <div class="topbar">
-      <div class="tb-l"><button type="button" id="btn-binder-back">Back</button></div>
-      <h1>BINDER</h1>
-      <div class="tb-r"><button type="button" class="debug-reset" id="btn-reset-binder">reset</button></div>
+    <header class="binder-head">
+      <div class="topbar">
+        <div class="tb-l"><button type="button" id="btn-binder-back">Back</button></div>
+        <h1>BINDER</h1>
+        <div class="tb-r"><button type="button" id="btn-binder-decks">DECKS</button><button type="button" class="debug-reset" id="btn-reset-binder">reset</button></div>
+      </div>
+      <div class="binder-filter" id="binder-filter" role="tablist" aria-label="Filter by rarity">
+        <button type="button" data-f="all" class="on">ALL</button><button type="button" data-f="C">COMMON</button><button type="button" data-f="R">RARE</button><button type="button" data-f="SR">SUPER RARE</button><button type="button" data-f="SCR">SECRET</button><button type="button" data-f="monster">MONSTERS</button><button type="button" data-f="spell">SPELLS</button><button type="button" data-f="trap">TRAPS</button>
+      </div>
+      <p class="binder-count" id="binder-count"></p>
+    </header>
+    <div class="binder-scroll" id="binder-scroll" tabindex="0" aria-label="Your cards">
+      <div class="binder-book" id="binder-book">
+        <div class="binder-page" id="binder-page"></div>
+      </div>
+      <p class="binder-hint">click a card to look at it up close</p>
     </div>
-    <div class="binder-filter" id="binder-filter" role="tablist" aria-label="Filter by rarity">
-      <button type="button" data-f="all" class="on">ALL</button><button type="button" data-f="C">COMMON</button><button type="button" data-f="R">RARE</button><button type="button" data-f="SR">SUPER RARE</button><button type="button" data-f="SCR">SECRET</button><button type="button" data-f="monster">MONSTERS</button><button type="button" data-f="spell">SPELLS</button><button type="button" data-f="trap">TRAPS</button>
+  </section>
+
+  <section id="screen-decks" class="screen" aria-label="Deck builder">
+    <header class="binder-head">
+      <div class="topbar">
+        <div class="tb-l"><button type="button" id="btn-decks-back">Back</button></div>
+        <h1>DECKS</h1>
+        <div class="tb-r"><button type="button" id="btn-decks-arena">Battle</button></div>
+      </div>
+      <div class="deck-tabs" id="deck-tabs" role="tablist" aria-label="Deck slots"></div>
+      <div class="deck-tools">
+        <input id="deck-name" maxlength="18" autocomplete="off" spellcheck="false" aria-label="Deck name">
+        <button type="button" id="deck-auto">AUTO-FILL</button>
+        <button type="button" id="deck-clear">CLEAR</button>
+        <button type="button" id="deck-use">USE IN BATTLES</button>
+      </div>
+    </header>
+    <div class="deck-body">
+      <div class="deck-pool" id="deck-pool" tabindex="0" aria-label="Your cards: click to add">
+        <div class="binder-filter deck-filter" id="deck-filter">
+          <button type="button" data-f="all" class="on">ALL</button><button type="button" data-f="monster">MONSTERS</button><button type="button" data-f="spell">SPELLS</button><button type="button" data-f="trap">TRAPS</button>
+        </div>
+        <div class="deck-grid" id="deck-grid"></div>
+        <p class="deck-empty" id="deck-pool-empty" hidden>You don't own any cards yet. Open packs in the shop!</p>
+      </div>
+      <aside class="deck-side" id="deck-side" aria-label="Your deck: click to remove">
+        <div class="deck-stats" id="deck-stats"></div>
+        <p class="deck-warn" id="deck-warn"></p>
+        <ol class="deck-list" id="deck-list"></ol>
+        <p class="deck-help">click or drag cards in · click a row to take one out</p>
+      </aside>
     </div>
-    <div class="binder-book" id="binder-book">
-      <div class="binder-page" id="binder-page"></div>
-    </div>
-    <p class="binder-count" id="binder-count"></p>
   </section>
 
   <section id="screen-arena" class="screen" aria-label="The arena">
@@ -117,6 +154,7 @@
     </div>
     <div class="arena-panel sketch-box">
       <p class="deck-line" id="deck-line"></p>
+      <button type="button" class="deck-btn" id="btn-arena-decks">EDIT DECKS</button>
       <div class="arena-modes" id="arena-modes">
         <button type="button" class="big" id="btn-vs-bot">VS BOT</button>
         <button type="button" class="big" id="btn-quick">QUICK MATCH</button>
@@ -253,15 +291,39 @@
 
   <button type="button" class="mute-btn" id="btn-mute" aria-label="Sound on"><img src="assets/ui/sound_on.png" alt=""></button>
 
+  <div class="card-zoom" id="card-zoom" hidden role="dialog" aria-modal="true" aria-label="Card close-up">
+    <button type="button" class="zoom-nav prev" id="zoom-prev" aria-label="Previous card">&lt;</button>
+    <div class="zoom-inner">
+      <div class="zoom-card" id="zoom-card"></div>
+      <div class="zoom-info sketch-box">
+        <h2 id="zoom-name"></h2>
+        <p class="zoom-rar" id="zoom-rar"></p>
+        <p class="zoom-meta" id="zoom-meta"></p>
+        <p class="zoom-text" id="zoom-text"></p>
+        <p class="zoom-own" id="zoom-own"></p>
+        <p class="zoom-pos" id="zoom-pos"></p>
+      </div>
+    </div>
+    <button type="button" class="zoom-nav next" id="zoom-next" aria-label="Next card">&gt;</button>
+    <button type="button" class="zoom-x" id="zoom-x" aria-label="Close">X</button>
+  </div>
+
   <div class="admin" id="admin" hidden role="dialog" aria-label="Admin panel">
     <div class="admin-box sketch-box">
-      <div class="admin-head"><h2>ADMIN</h2><span class="admin-note">local only · press L to close</span><button type="button" class="small" id="admin-x">X</button></div>
+      <div class="admin-head"><h2>ADMIN</h2><span class="admin-note">press L to close · off in online games</span><button type="button" class="small" id="admin-x">X</button></div>
       <div class="admin-sec">
-        <h3>COLLECTION</h3>
-        <div class="admin-row"><select id="adm-card" aria-label="Card"></select><label><input type="checkbox" id="adm-foil"> foil</label><button type="button" id="adm-give">GIVE CARD</button><button type="button" id="adm-give-all">GIVE ALL</button></div>
-        <div class="admin-row"><input id="adm-ink" type="number" value="1000" step="100" aria-label="Ink amount"><button type="button" id="adm-add-ink">ADD INK</button></div>
-        <div class="admin-row"><button type="button" id="adm-open-e1">OPEN EDITION ONE FREE</button><button type="button" id="adm-open-sr">OPEN SUPER RARE FREE</button></div>
-        <div class="admin-row"><button type="button" class="danger" id="adm-reset">RESET ALL PROGRESS</button></div>
+        <h3>INK</h3>
+        <div class="admin-row"><button type="button" id="adm-inf">INFINITE INK: OFF</button><input id="adm-ink" type="number" value="1000" step="100" aria-label="Ink amount"><button type="button" id="adm-add-ink">ADD INK</button><button type="button" id="adm-set-ink">SET INK</button></div>
+      </div>
+      <div class="admin-sec">
+        <h3>CARDS</h3>
+        <div class="admin-row"><select id="adm-card" aria-label="Card"></select><span class="adm-x">x</span><input id="adm-n" type="number" value="1" min="1" max="99" aria-label="How many"><label><input type="checkbox" id="adm-foil"> foil</label><button type="button" id="adm-give">GIVE</button></div>
+        <div class="admin-row"><button type="button" id="adm-give-all">GIVE 1 OF EVERY CARD</button><button type="button" id="adm-max">UNLOCK ALL AT MAX COPIES</button><button type="button" id="adm-all-foil">MAKE EVERY CARD FOIL</button></div>
+      </div>
+      <div class="admin-sec">
+        <h3>PACKS</h3>
+        <div class="admin-row"><button type="button" id="adm-open-e1">OPEN EDITION ONE FREE</button><button type="button" id="adm-open-sr">OPEN SUPER RARE FREE</button><button type="button" id="adm-instant">INSTANT OPENING: OFF</button></div>
+        <div class="admin-row"><span class="adm-lbl">NEXT PACK'S LAST CARD:</span><select id="adm-force" aria-label="Force next pack rarity"><option value="">RANDOM</option><option value="R">RARE</option><option value="SR">SUPER RARE</option><option value="SCR">SECRET RARE</option></select><label><input type="checkbox" id="adm-pack-foil"> all foil pulls</label></div>
       </div>
       <div class="admin-sec" id="adm-duel">
         <h3>CURRENT BOT DUEL</h3>
@@ -269,6 +331,11 @@
         <div class="admin-row"><select id="adm-who" aria-label="Side"><option value="0">YOU</option><option value="1">BOT</option></select><select id="adm-spawn" aria-label="Card to spawn"></select><button type="button" id="adm-spawn-go">SPAWN</button><button type="button" id="adm-hand-go">TO HAND</button></div>
         <div class="admin-row"><button type="button" id="adm-clear">REMOVE MONSTERS</button><button type="button" id="adm-clear-all">CLEAR FIELD</button><button type="button" id="adm-draw">DRAW 1</button></div>
         <div class="admin-row"><input id="adm-lp" type="number" value="4000" step="100" aria-label="LP"><button type="button" id="adm-lp-go">SET LP</button><button type="button" id="adm-god">GOD MODE: OFF</button></div>
+        <div class="admin-row"><button type="button" id="adm-win">AUTO-WIN THIS DUEL</button><span class="adm-lbl">BOT:</span><select id="adm-bot" aria-label="Bot mode"><option value="">NORMAL</option><option value="easy">EASY (skips half its attacks)</option><option value="skip">SKIPS ITS TURNS</option></select></div>
+      </div>
+      <div class="admin-sec">
+        <h3>DANGER</h3>
+        <div class="admin-row"><button type="button" class="danger" id="adm-reset">RESET ALL PROGRESS</button></div>
       </div>
     </div>
   </div>
@@ -288,16 +355,17 @@
     </div>
   </div>
 
-  <script src="js/audio.js?v=10"></script>
-  <script src="js/data.js?v=10"></script>
-  <script src="js/storage.js?v=10"></script>
-  <script src="js/foil.js?v=10"></script>
-  <script src="js/engine.js?v=10"></script>
-  <script src="js/ai.js?v=10"></script>
+  <script src="js/audio.js?v=12"></script>
+  <script src="js/data.js?v=12"></script>
+  <script src="js/storage.js?v=12"></script>
+  <script src="js/foil.js?v=12"></script>
+  <script src="js/engine.js?v=12"></script>
+  <script src="js/ai.js?v=12"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
-  <script src="js/net.js?v=10"></script>
-  <script src="js/game.js?v=10"></script>
-  <script src="js/duel.js?v=10"></script>
-  <script src="js/admin.js?v=11"></script>
+  <script src="js/net.js?v=12"></script>
+  <script src="js/game.js?v=12"></script>
+  <script src="js/duel.js?v=12"></script>
+  <script src="js/decks.js?v=12"></script>
+  <script src="js/admin.js?v=12"></script>
 </body>
 </html>

@@ -22,14 +22,19 @@
     sessionStorage.setItem("llc-name", myName);
   }
 
-  function myDeck() { return E.deckFromCollection(LLCStorage.load()); }
+  function myDeck() { return E.activeDeck(LLCStorage.load()); }
 
   /* ================= arena / lobby ================= */
   function renderArena() {
     const d = myDeck();
     const total = window.LLCData.CARDS.length;
-    $("deck-line").textContent = "YOUR DECK: 20 CARDS  ·  " + d.owned + " / " + total + " CARDS OWNED" +
-      (d.owned < 20 ? "  ·  COMMON STARTERS FILL THE GAPS" : "  ·  YOUR BEST CARDS ARE IN");
+    const owned = LLCStorage.ownedCount();
+    const dk = LLCStorage.decks();
+    const want = dk.active >= 0 ? dk.list[dk.active] : null;
+    $("deck-line").textContent = d.custom
+      ? "DECK: " + d.name + " (20 CARDS)  ·  " + owned + " / " + total + " CARDS OWNED"
+      : (want ? "\"" + want.name + "\" IS NOT VALID, USING THE AUTO DECK  ·  " : "AUTO DECK: 20 CARDS  ·  ") + owned + " / " + total + " CARDS OWNED" +
+        (want ? "" : d.owned < 20 ? "  ·  COMMON STARTERS FILL THE GAPS" : "  ·  YOUR BEST CARDS ARE IN");
     setWaiting(false);
   }
   function setWaiting(on, title, sub) {
@@ -87,6 +92,7 @@
   $("btn-wait-bot").addEventListener("click", () => { LLCNet.stop(); startBot(); });
   $("btn-arena-back").addEventListener("click", () => { LLCNet.stop(); LLC.show("map"); });
   $("btn-arena-binder").addEventListener("click", () => { LLCNet.stop(); LLC.show("binder"); });
+  $("btn-arena-decks").addEventListener("click", () => { LLCNet.stop(); LLC.show("decks"); });
   document.addEventListener("llc:screen", (e) => {
     if (e.detail.name === "arena") renderArena();
     if (e.detail.prev === "duel" && e.detail.name !== "duel") leaveDuel();
@@ -107,7 +113,10 @@
       timer = setTimeout(() => {
         if (!alive || s.winner != null) return;
         if ((s.pending ? s.pending.player : s.active) !== 1) return;
-        const a = LLCAI.decide(E.view(s, 1));
+        const bm = (LLCStorage.flags() || {}).bot;      // admin: "easy" = bot skips half its attacks, "skip" = bot passes its turns
+        let a = LLCAI.decide(E.view(s, 1));
+        if (bm === "skip" && !s.pending) a = { a: "endturn" };
+        else if (bm === "easy" && a && a.a === "attack" && Math.random() < 0.5) a = { a: "phase" };
         let ev;
         try { ev = E.apply(s, 1, a || { a: "phase" }); }
         catch (err) {
@@ -153,7 +162,9 @@
   }
 
   function hostController(conn, guestHello) {
-    const guestDeck = E.validDeck(guestHello.deck) ? guestHello.deck : E.deckFromCollection({}).cards;
+    // the host checks the guest's list: exactly 20 real cards within the copy caps, else the starter deck
+    const gd = Array.isArray(guestHello.deck) ? guestHello.deck.map((c) => ({ id: c && String(c.id), foil: !!(c && c.foil) })) : null;
+    const guestDeck = gd && E.validDeck(gd) ? gd : E.deckFromCollection({}).cards;
     const seed = (Math.random() * 2 ** 31) >>> 0;
     const { state: s, events } = E.create({
       seed, decks: [myDeck().cards, guestDeck],
@@ -1312,7 +1323,7 @@
       if (ui.ctl.mode === "online" && reason === "Your rival left the match.") reward = 150;
       LLCStorage.addInk(reward);
     }
-    $("over-sub").textContent = (reason || "") + (reward ? "\n+" + reward + " INK  (you have " + LLCStorage.ink() + ")" : "");
+    $("over-sub").textContent = (reason || "") + (reward ? "\n+" + reward + " INK  (you have " + LLCStorage.inkLabel() + ")" : "");
     $("duel-over").hidden = false;
     closeSheet();
     closeGrave();
