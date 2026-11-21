@@ -12,7 +12,7 @@ Rules live in `js/engine.js` (pure, host-authoritative), the bot in `js/ai.js`, 
 
 ## Audio
 
-Real downloaded CC0 files only (Kenney, MatiasVME, Luckius). Nothing is synthesised. See [`assets/audio/CREDITS.txt`](assets/audio/CREDITS.txt). Audio starts on the first tap, and the mute toggle is remembered.
+Real downloaded CC0 files only (Kenney, omfgdude, qubodup, Luckius). Nothing is synthesised. See [`assets/audio/CREDITS.txt`](assets/audio/CREDITS.txt). Audio starts on the first tap, and the mute toggle is remembered.
 
 Open [the live page](https://landrcy.github.io/llccards/) or just open `index.html` from a local static server (needed so card masks and the font load correctly).
 

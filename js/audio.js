@@ -2,12 +2,13 @@
    Starts after the first user gesture. Mute persists in localStorage. */
 (function (global) {
   const KEY = "llc-muted";
-  const V = "1";
+  const V = "2";
   const SFX = {
     click: 0.35, shake: 0.5, rip: 0.7, flip: 0.55, slide: 0.45, thump: 0.5, place: 0.6,
     hit: 0.55, drain: 0.35, cast: 0.45, new: 0.4, foil: 0.35, win: 0.5, lose: 0.5, match: 0.5, nope: 0.3,
   };
-  const MUSIC = { map: "music_map", battle: "music_battle" };
+  const MUSIC = { map: "lofi_map", battle: "lofi_battle" };
+  const OGG = (() => { try { return !!new Audio().canPlayType('audio/ogg; codecs="vorbis"'); } catch (e) { return false; } })();
   const MUSIC_VOL = 0.18;
   let muted = localStorage.getItem(KEY) === "1";
   let unlocked = false;
@@ -39,7 +40,7 @@
 
   function track(key) {
     if (!tracks[key]) {
-      const a = new Audio(src(MUSIC[key]));
+      const a = new Audio("assets/audio/" + MUSIC[key] + (OGG ? ".ogg" : ".mp3") + "?v=" + V);
       a.loop = true; a.preload = "auto"; a.volume = 0;
       tracks[key] = a;
     }

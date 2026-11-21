@@ -6,12 +6,15 @@ and re-encoded to MP3 for size. Licences allow this.
 
 MUSIC
 -----
-music_map.mp3      "Utopia" from "Chiptune Loops" by MatiasVME
-                   Licence: CC0 1.0 (public domain)
-                   https://opengameart.org/content/chiptune-loops-0
-music_battle.mp3   "March" from "Chiptune Loops" by MatiasVME
-                   Licence: CC0 1.0 (public domain)
-                   https://opengameart.org/content/chiptune-loops-0
+lofi_map.ogg / .mp3     "Chill lofi inspired [loop edit]"
+                        Music by omfgdude (OMF-Games), seamless loop edit by qubodup
+                        Licence: CC0 1.0 (public domain)
+                        https://opengameart.org/content/chill-lofi-inspired-loop-edit
+                        Original: https://opengameart.org/content/chill-lofi-inspired
+lofi_battle.ogg / .mp3  "Lofi Hip Hop Loop" by omfgdude (OMF-Games)
+                        Licence: CC0 1.0 (public domain)
+                        https://opengameart.org/content/lofi-hip-hop-loop
+                        Edited: 1.5 s crossfade at the loop seam, mono.
 
 SOUND EFFECTS
 -------------
@@ -45,4 +48,4 @@ https://kenney.nl/assets/music-jingles
   lose.mp3    jingles_NES11.ogg
   match.mp3   jingles_NES09.ogg
 
-CC0 needs no credit, but thank you Kenney, MatiasVME and Luckius.
+CC0 needs no credit, but thank you Kenney, omfgdude, qubodup and Luckius.
