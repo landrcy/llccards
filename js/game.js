@@ -1,7 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "4";
+  const ASSET_V = "8"; window.LLC_ASSET_V = ASSET_V;
   const reduced = () =>
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -57,8 +57,9 @@
   /* ---------- map hotspots ---------- */
   function placeHotspots() {
     const fallback = {
-      shop: { x: 0.121, y: 0.267, w: 0.398, h: 0.386 },
-      battle: { x: 0.574, y: 0.188, w: 0.336, h: 0.568 },
+      shop: { x: 0.184, y: 0.280, w: 0.322, h: 0.397 },
+      battle: { x: 0.546, y: 0.227, w: 0.292, h: 0.450 },
+      play: { x: 0.583, y: 0.695, w: 0.217, h: 0.105 },
     };
     const apply = (el, b) => {
       el.style.left = (b.x * 100) + "%";
@@ -69,12 +70,47 @@
     const go = (hs) => {
       apply($("hot-shop"), hs.shop);
       apply($("hot-battle"), hs.battle);
+      if (hs.play) apply($("hot-play"), hs.play);
     };
     fetch("assets/map_hotspots.json?v=" + ASSET_V)
       .then((r) => r.json())
       .then(go)
       .catch(() => go(fallback));
   }
+
+  /* ---------- fullscreen map: nearest-neighbour scale, edges extended ----------
+     The drawing scales by whole art pixels (MAP_UNIT source px) to the largest
+     size that fits, on white paper that runs to every window edge. */
+  const MAP_UNIT = 4;
+  const MAP_CONTENT = { x0: 0.085, x1: 0.93, y0: 0.02, y1: 0.95 }; // inked bounds of Finley's drawing
+  function drawMap() {
+    const img = $("map-src"), cv = $("map-canvas"), stage = $("map-stage"), wrap = $("map-wrap");
+    if (!img || !img.complete || !img.naturalWidth || !wrap.clientWidth) return;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    // fit the inked part of the drawing (its white margins are just paper and may run off-screen)
+    const C = MAP_CONTENT, cw = (C.x1 - C.x0) * iw, ch = (C.y1 - C.y0) * ih;
+    const tb = document.querySelector("#screen-map .topbar");
+    const top = tb ? Math.round(tb.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top) : 0;
+    const AH = H - Math.max(0, top) - 8;
+    const fit = Math.min(W / cw, AH / ch);
+    const step = 1 / MAP_UNIT;
+    const s = fit >= step * 2 ? Math.floor(fit / step) * step : fit;
+    const dw = Math.round(iw * s), dh = Math.round(ih * s);
+    const ox = Math.round(W / 2 - (C.x0 + C.x1) / 2 * dw), oy = Math.round(Math.max(0, top) + 4 + AH / 2 - (C.y0 + C.y1) / 2 * dh);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    // the drawing sits on white paper, so the margins are simply more paper
+    g.drawImage(img, 0, 0, iw, ih, ox, oy, dw, dh);
+    Object.assign(stage.style, { left: ox + "px", top: oy + "px", width: dw + "px", height: dh + "px" });
+  }
+  window.addEventListener("resize", () => { if (currentScreen === "map") drawMap(); });
+  document.addEventListener("llc:screen", (e) => { if (e.detail.name === "map") requestAnimationFrame(drawMap); });
+  $("map-src").addEventListener("load", drawMap);
 
   /* ---------- binder ---------- */
   function renderBinder() {
@@ -384,6 +420,7 @@
 
   $("hot-shop").addEventListener("click", () => show("shop"));
   $("hot-battle").addEventListener("click", () => show("arena"));
+  $("hot-play").addEventListener("click", () => show("arena"));
 
   $("btn-shop-back").addEventListener("click", () => show("map"));
   $("btn-map-binder").addEventListener("click", () => show("binder"));

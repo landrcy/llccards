@@ -58,8 +58,8 @@
     others.concat(next ? [next] : []).forEach((a) => from.set(a, a.volume));
     const step = (t) => {
       const k = Math.min(1, (t - start) / dur);
-      others.forEach((a) => { a.volume = from.get(a) * (1 - k); if (k >= 1 && !a.paused) a.pause(); });
-      if (next) next.volume = from.get(next) + (MUSIC_VOL - from.get(next)) * k;
+      others.forEach((a) => { a.volume = Math.max(0, Math.min(1, from.get(a) * (1 - k))); if (k >= 1 && !a.paused) a.pause(); });
+      if (next) next.volume = Math.max(0, Math.min(1, from.get(next) + (MUSIC_VOL - from.get(next)) * k));
       if (k < 1) fadeRaf = requestAnimationFrame(step);
     };
     fadeRaf = requestAnimationFrame(step);

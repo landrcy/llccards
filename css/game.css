@@ -1,6 +1,7 @@
 @font-face {
-  font-family: "Bagel Fat One";
-  src: url("../assets/fonts/BagelFatOne-Regular.ttf") format("truetype");
+  font-family: "LLC Hand";
+  src: url("../assets/fonts/LLCHand-Regular.woff2?v=8") format("woff2"),
+       url("../assets/fonts/LLCHand-Regular.ttf?v=8") format("truetype");
   font-display: block;
   font-weight: 400;
   font-style: normal;
@@ -36,8 +37,9 @@
 html, body {
   background: var(--paper);
   color: var(--ink);
-  font-family: "Bagel Fat One", sans-serif;
+  font-family: "LLC Hand", "Comic Sans MS", sans-serif;
   font-weight: 400;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   min-height: 100%;
   user-select: none;
@@ -781,3 +783,101 @@ body.in-duel .mute-btn { display: none; }
 .credits-body b { font-weight: 400; font-size: 16px; }
 .credits-file { opacity: 0.7; }
 .credits-card #btn-credits-ok { display: block; margin: 0 auto; }
+
+/* =====================================================================
+   FULLSCREEN LAYOUT — every screen fills the window, no page scroll.
+   Corner buttons sit at the screen corners; art scales nearest-neighbour.
+   ===================================================================== */
+html, body { height: 100%; overflow: hidden; }
+.screen {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+.topbar {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  width: auto;
+  margin: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+.topbar h1 { font-size: clamp(18px, 2.4vw, 46px); }
+.topbar button { font-size: clamp(16px, 1.3vw, 26px); padding: clamp(6px, 0.6vw, 12px) clamp(12px, 1.2vw, 24px); }
+
+/* title: logo as big as the window allows */
+#screen-title .logo { width: min(92vw, calc((100dvh - 120px) * 1.25), 1400px); margin-bottom: clamp(12px, 3dvh, 40px); }
+.tap-hint { font-size: clamp(18px, 2vw, 40px); }
+
+/* map: canvas fills the window; hotspots live on a stage over the drawing */
+#screen-map { padding: 0; }
+.map-wrap { position: absolute; inset: 0; width: auto; line-height: 0; overflow: hidden; }
+.map-src { display: none; }
+.map-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.map-stage { position: absolute; }
+.hotspot { transition: transform 0.18s cubic-bezier(0.3, 1.5, 0.5, 1); }
+.hotspot:hover, .hotspot:focus-visible { transform: translateY(-4px); }
+#screen-map .credits-btn {
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 60;
+  margin: 0;
+  min-height: 52px;
+  font-size: clamp(14px, 1.1vw, 22px);
+  padding: 6px 14px;
+}
+.credits-btn img { display: block; height: clamp(40px, 5dvh, 72px); width: auto; image-rendering: pixelated; }
+.credits-btn.art { background: none; border: none; border-image: none; padding: 0; }
+
+/* shop: packs scale with the window and spread out */
+#screen-shop { justify-content: center; padding-top: clamp(64px, 9dvh, 120px); }
+.shelf {
+  width: min(100%, 2000px);
+  flex-wrap: nowrap;
+  gap: clamp(16px, 4vw, 90px);
+  padding: 0 clamp(8px, 2vw, 40px) clamp(40px, 6dvh, 80px);
+  background-size: auto clamp(28px, 4dvh, 56px);
+  flex: 0 1 auto;
+}
+.pack-slot { width: min(calc((100vw - 120px) / 3.3), calc((100dvh - 340px) * 280 / 400), 520px); }
+.pack-slot .label { font-size: clamp(13px, 1.25vw, 26px); }
+.shop-actions { margin-top: clamp(10px, 3dvh, 40px); }
+
+/* binder: 2 rows of 5 on wide screens, sized from the window */
+#screen-binder { justify-content: center; padding-top: clamp(64px, 9dvh, 120px); }
+.binder-book { width: 100%; }
+.binder-page {
+  --gap: clamp(10px, 1.4vw, 28px);
+  --bw: min(calc((100vw - 48px - 4 * var(--gap)) / 5), calc((100dvh - 200px - var(--gap)) / 2 * 360 / 472));
+}
+.binder-count { font-size: clamp(14px, 1.2vw, 24px); }
+
+/* arena lobby centred and scaled */
+#screen-arena { justify-content: center; padding-top: clamp(64px, 9dvh, 110px); overflow-y: auto; }
+.arena-panel { width: min(640px, 100%); }
+
+/* opening scales from the window height */
+.llc-card.lg { --card-w: min(78vw, calc((100dvh - 260px) * 360 / 472), 560px); }
+.card-stack { width: min(78vw, calc((100dvh - 260px) * 360 / 472), 560px); }
+
+@media (max-width: 720px) {
+  .shelf { flex-wrap: wrap; gap: 12px 10px; }
+  .pack-slot { width: min(42vw, calc((100dvh - 260px) / 2 * 280 / 400)); }
+  .binder-page { --gap: 8px; --bw: min(calc((100vw - 24px - 2 * var(--gap)) / 3), calc((100dvh - 150px - 3 * var(--gap)) / 4 * 360 / 472)); }
+  #screen-shop, #screen-binder, #screen-arena { padding-top: 64px; }
+  .llc-card.lg { --card-w: min(72vw, calc((100dvh - 250px) * 360 / 472)); }
+  .card-stack { width: min(72vw, calc((100dvh - 250px) * 360 / 472)); }
+  #screen-title .logo { width: min(94vw, calc((100dvh - 120px) * 1.25)); }
+}
+.arena-panel { max-height: calc(100dvh - 90px); overflow-y: auto; }
+#screen-arena { overflow: hidden; }
+@media (max-height: 520px) {
+  #screen-arena { padding-top: 58px; }
+  .arena-panel { padding: 10px 14px; gap: 8px; max-height: calc(100dvh - 70px); }
+  button.big { font-size: 18px; padding: 6px 12px; min-height: 40px; }
+}

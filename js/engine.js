@@ -154,7 +154,7 @@
   }
   function canAttackWith(s, p, slot) {
     const m = mon(s, p, slot);
-    if (!m || m.pos !== "atk" || !m.faceUp || m.attacked) return false;
+    if (!m || m.pos !== "atk" || m.attacked) return false;
     if (s.turn === 1) return false;
     const c = cardOf(s, m.uid);
     if (m.summonedTurn === s.turn && c.id !== "stick_runner") return false;
@@ -163,16 +163,23 @@
   function eraseTargets(s) {
     const out = [];
     [0, 1].forEach((p) => s.players[p].mz.forEach((m, slot) => {
-      if (m && m.faceUp && atkOf(s, m) <= 1000) out.push({ p, slot });
+      if (m && atkOf(s, m) <= 1000) out.push({ p, slot });
     }));
     return out;
   }
-  function trapOptions(s, p) {
+  /* Traps: only one per player per turn, and WHOOPS! only answers big attackers. */
+  const WHOOPS_MIN_ATK = 1500, WHOOPS_COST = 300;
+  function trapOptions(s, p, attacker) {
     const out = [];
-    s.players[p].sz.forEach((st, slot) => {
+    const pl = s.players[p];
+    if (pl.trapTurn === s.turn) return out;
+    const A = attacker ? atkOf(s, attacker) : 0;
+    pl.sz.forEach((st, slot) => {
       if (!st) return;
       const c = cardOf(s, st.uid);
-      if (c.kind === "trap" && st.setTurn < s.turn) out.push(slot);
+      if (c.kind !== "trap" || st.setTurn >= s.turn) return;
+      if (c.id === "whoops" && (A < WHOOPS_MIN_ATK || pl.lp <= WHOOPS_COST)) return;
+      out.push(slot);
     });
     return out;
   }
@@ -207,7 +214,7 @@
         const o = [];
         if (!m.posChanged && m.summonedTurn !== s.turn && !m.attacked) o.push("pos");
         const c = cardOf(s, m.uid);
-        if (c.id === "lord_of_lines" && m.faceUp && !m.lordUsed) o.push("effect");
+        if (c.id === "lord_of_lines" && !m.lordUsed) o.push("effect");
         L.mz[slot] = o;
       });
       pl.sz.forEach((st, slot) => {
@@ -230,7 +237,7 @@
   function spellUsable(s, p, id) {
     if (id === "erase") return eraseTargets(s).length > 0;
     if (id === "quick_sketch") return s.players[p].deck.length >= 1;
-    if (id === "ink_flood") return [0, 1].some((q) => s.players[q].mz.some((m) => m && m.faceUp));
+    if (id === "ink_flood") return [0, 1].some((q) => s.players[q].mz.some((m) => m));
     return true;
   }
 
@@ -238,7 +245,7 @@
     const pl = s.players[p];
     if (id === "erase") {
       const m = target && mon(s, target.p, target.slot);
-      if (!m || !m.faceUp || atkOf(s, m) > 1000) throw new Error("bad target");
+      if (!m || atkOf(s, m) > 1000) throw new Error("bad target");
       log(s, ev, "{P"+p+":casts|cast} ERASE on " + cardOf(s, m.uid).name + ".");
       destroyMon(s, target.p, target.slot, ev);
     } else if (id === "quick_sketch") {
@@ -247,7 +254,7 @@
       if (pl.hand.length) s.pending = { type: "discard", player: p, count: 1, then: "main" };
     } else if (id === "ink_flood") {
       log(s, ev, "{P"+p+":casts|cast} INK FLOOD: all monsters -400 ATK this turn.");
-      s.players.forEach((q) => q.mz.forEach((m) => { if (m && m.faceUp) m.tmp = (m.tmp || 0) - 400; }));
+      s.players.forEach((q) => q.mz.forEach((m) => { if (m) m.tmp = (m.tmp || 0) - 400; }));
     }
   }
 
@@ -256,10 +263,9 @@
     const m = mon(s, p, slot);
     m.attacked = true;
     const tgtName = target == null ? "directly" : cardOf(s, mon(s, 1 - p, target).uid).name;
-    const tgtLabel = target == null ? "directly" : (mon(s, 1 - p, target).faceUp ? tgtName : "a face-down card");
-    log(s, ev, cardOf(s, m.uid).name + " attacks " + (target == null ? "directly" : tgtLabel) + ".");
+    log(s, ev, cardOf(s, m.uid).name + " attacks " + tgtName + ".");
     ev.push({ e: "attack", p, slot, target });
-    const opts = trapOptions(s, 1 - p);
+    const opts = trapOptions(s, 1 - p, m);
     if (opts.length) {
       s.pending = { type: "trap", player: 1 - p, attacker: slot, target, options: opts };
       return;
@@ -267,61 +273,73 @@
     resolveBattle(s, p, slot, target, ev);
   }
 
+  /* Damage step. Pushes one "clash" event that the board turns into the fight pop-up. */
   function resolveBattle(s, p, slot, target, ev) {
     const a = mon(s, p, slot);
     if (!a) return;
     const o = 1 - p;
+    const aName = cardOf(s, a.uid).name;
+    const A = atkOf(s, a);
+    const clash = { e: "clash", p, slot, target, aId: s.cards[a.uid].id, A, dId: null, D: 0, dPos: null,
+      aDestroyed: false, dDestroyed: false, dmgTo: null, dmg: 0, saved: false };
     if (target == null) {
-      damage(s, o, atkOf(s, a), ev);
+      clash.dmgTo = o; clash.dmg = A;
+      log(s, ev, aName + " hits directly: {P" + o + ":takes|take} " + A + ".");
+      ev.push(clash);
+      damage(s, o, A, ev);
       return;
     }
     const d = mon(s, o, target);
     if (!d) return;
-    if (!d.faceUp) {
-      d.faceUp = true;
-      ev.push({ e: "flip", p: o, slot: target });
-      log(s, ev, "It was " + cardOf(s, d.uid).name + ".");
-    }
-    const A = atkOf(s, a);
-    const dc = cardOf(s, d.uid);
-    const survives = (m, who) => {
+    const dName = cardOf(s, d.uid).name;
+    clash.dId = s.cards[d.uid].id;
+    clash.dPos = d.pos;
+    const survives = (m) => {
       if (cardOf(s, m.uid).id === "dot_dummy" && !m.dummyUsed) {
         m.dummyUsed = true;
-        log(s, ev, "DOT DUMMY shrugs it off.");
+        clash.saved = true;
         return true;
       }
       return false;
     };
-    const killedBy = () => {
-      if (cardOf(s, a.uid).id === "box_knight") {
-        a.mod = (a.mod || 0) + 200;
-        log(s, ev, "BOX KNIGHT gains 200 ATK.");
-      }
+    const kill = (who, sl) => { destroyMon(s, who, sl, ev); };
+    const boxKnight = () => {
+      if (cardOf(s, a.uid).id === "box_knight" && mon(s, p, slot)) { a.mod = (a.mod || 0) + 200; }
     };
+    let line = aName + " (ATK " + A + ") attacks " + dName;
     if (d.pos === "atk") {
-      const D = atkOf(s, d);
+      const D = atkOf(s, d); clash.D = D;
+      line += " (ATK " + D + "): ";
       if (A > D) {
-        if (!survives(d, o)) { destroyMon(s, o, target, ev); killedBy(); }
-        damage(s, o, A - D, ev);
+        if (!survives(d)) { clash.dDestroyed = true; }
+        clash.dmgTo = o; clash.dmg = A - D;
+        line += (clash.dDestroyed ? dName + " is destroyed, " : dName + " survives, ") + "{P" + o + ":takes|take} " + (A - D) + ".";
       } else if (A < D) {
-        if (!survives(a, p)) destroyMon(s, p, slot, ev);
-        damage(s, p, D - A, ev);
+        if (!survives(a)) clash.aDestroyed = true;
+        clash.dmgTo = p; clash.dmg = D - A;
+        line += (clash.aDestroyed ? aName + " is destroyed, " : aName + " survives, ") + "{P" + p + ":takes|take} " + (D - A) + ".";
       } else {
-        const dSurv = survives(d, o);
-        const aSurv = survives(a, p);
-        if (!dSurv) destroyMon(s, o, target, ev);
-        if (!aSurv) destroyMon(s, p, slot, ev);
-        if (!dSurv && !aSurv) {} else if (!dSurv && mon(s, p, slot)) killedBy();
+        if (!survives(d)) clash.dDestroyed = true;
+        if (!survives(a)) clash.aDestroyed = true;
+        line += "a tie, " + (clash.aDestroyed && clash.dDestroyed ? "both are destroyed." : "no damage.");
       }
     } else {
-      const D = defOf(s, d);
+      const D = defOf(s, d); clash.D = D;
+      line += " (DEF " + D + "): ";
       if (A > D) {
-        if (!survives(d, o)) { destroyMon(s, o, target, ev); killedBy(); }
+        if (!survives(d)) clash.dDestroyed = true;
+        line += clash.dDestroyed ? dName + " is destroyed, no damage." : dName + " shrugs it off.";
       } else if (A < D) {
-        damage(s, p, D - A, ev);
-      }
+        clash.dmgTo = p; clash.dmg = D - A;
+        line += "it holds, {P" + p + ":takes|take} " + (D - A) + ".";
+      } else line += "it holds, no damage.";
     }
-    void dc;
+    if (clash.saved) line += " (DOT DUMMY's shield)";
+    log(s, ev, line);
+    ev.push(clash);
+    if (clash.dDestroyed) { kill(o, target); boxKnight(); if (cardOf(s, a.uid).id === "box_knight" && mon(s, p, slot)) log(s, ev, "BOX KNIGHT gains 200 ATK."); }
+    if (clash.aDestroyed) kill(p, slot);
+    if (clash.dmg) damage(s, clash.dmgTo, clash.dmg, ev);
   }
 
   /* ---------- apply ---------- */
@@ -348,16 +366,18 @@
           pl.sz[act.slot] = null;
           sendToGrave(s, p, st.uid);
           ev.push({ e: "activate", p, id: c.id, zone: "sz", slot: act.slot });
+          pl.trapTurn = s.turn;
           const a = mon(s, attacker, pend.attacker);
           if (c.id === "whoops") {
-            log(s, ev, "{P"+p+":springs|spring} WHOOPS! The attack is negated.");
-            if (a) a.mod = (a.mod || 0) - 400;
+            log(s, ev, "{P"+p+":pays|pay} " + WHOOPS_COST + " LP and {P"+p+":springs|spring} WHOOPS! The attack is stopped.");
+            damage(s, p, WHOOPS_COST, ev);
+            ev.push({ e: "negated", p: attacker, slot: pend.attacker, target: pend.target, id: c.id });
             s.seq++;
             return ev;
           }
           if (c.id === "smudge") {
-            log(s, ev, "{P"+p+":springs|spring} SMUDGE: attacker -300 ATK.");
-            if (a) a.mod = (a.mod || 0) - 300;
+            log(s, ev, "{P"+p+":springs|spring} SMUDGE: the attacker loses 300 ATK this turn.");
+            if (a) a.tmp = (a.tmp || 0) - 300;
           }
         }
         resolveBattle(s, attacker, pend.attacker, pend.target, ev);
@@ -385,6 +405,9 @@
     const L = legal(s, p);
 
     switch (act.a) {
+      case "defense":
+        act = Object.assign({}, act, { a: "set" });
+        /* falls through */
       case "summon":
       case "set": {
         const opts = L.hand[act.uid] || [];
@@ -404,16 +427,16 @@
         let slot = act.slot != null && !pl.mz[act.slot] ? act.slot : freeSlot(pl.mz);
         if (slot === -1) throw new Error("no room");
         pl.hand.splice(pl.hand.indexOf(act.uid), 1);
-        const faceUp = act.a === "summon";
+        const atkMode = act.a === "summon";
         pl.mz[slot] = {
-          uid: act.uid, pos: faceUp ? "atk" : "def", faceUp,
+          uid: act.uid, pos: atkMode ? "atk" : "def", faceUp: true,
           mod: 0, tmp: 0, summonedTurn: s.turn, attacked: false, posChanged: false,
           dummyUsed: false, lordUsed: false,
         };
         pl.summoned = true;
-        ev.push({ e: faceUp ? "summon" : "setmon", p, slot });
-        log(s, ev, faceUp ? "{P"+p+":summons|summon} " + c.name + "." : "{P"+p+":sets|set} a monster.");
-        if (faceUp && c.id === "squiggle_worm") {
+        ev.push({ e: "summon", p, slot, pos: atkMode ? "atk" : "def" });
+        log(s, ev, "{P"+p+":summons|summon} " + c.name + (atkMode ? " in attack mode." : " in defense mode."));
+        if (c.id === "squiggle_worm") {
           if (draw(s, p, ev, true)) log(s, ev, "SQUIGGLE WORM: draw 1.");
         }
         break;
@@ -453,14 +476,8 @@
         if ((L.mz[act.slot] || []).indexOf("pos") === -1) throw new Error("cannot change");
         const m = pl.mz[act.slot];
         m.posChanged = true;
-        if (!m.faceUp) {
-          m.faceUp = true; m.pos = "atk";
-          log(s, ev, "{P"+p+":flips|flip} up " + cardOf(s, m.uid).name + ".");
-          if (cardOf(s, m.uid).id === "squiggle_worm" && draw(s, p, ev, true)) log(s, ev, "SQUIGGLE WORM: draw 1.");
-        } else {
-          m.pos = m.pos === "atk" ? "def" : "atk";
-          log(s, ev, cardOf(s, m.uid).name + " switches to " + (m.pos === "atk" ? "attack" : "defense") + ".");
-        }
+        m.pos = m.pos === "atk" ? "def" : "atk";
+        log(s, ev, cardOf(s, m.uid).name + " switches to " + (m.pos === "atk" ? "attack" : "defense") + " mode.");
         ev.push({ e: "pos", p, slot: act.slot });
         break;
       }
@@ -519,7 +536,7 @@
     const pub = (uid) => { const c = s.cards[uid]; return { uid, id: c.id, foil: c.foil }; };
     const V = {
       me: p, turn: s.turn, active: s.active, phase: s.phase, winner: s.winner, endReason: fmt(s, p, s.endReason),
-      seq: s.seq, log: s.log.slice(-6).map((t) => fmt(s, p, t)), first: s.first,
+      seq: s.seq, log: s.log.slice(-40).map((t) => fmt(s, p, t)), first: s.first,
       pending: null,
       players: s.players.map((pl, i) => ({
         name: pl.name, lp: pl.lp, deck: pl.deck.length,
@@ -528,9 +545,8 @@
         summoned: pl.summoned,
         mz: pl.mz.map((m) => {
           if (!m) return null;
-          const show = m.faceUp || i === p;
-          const o = { pos: m.pos, faceUp: m.faceUp, summonedTurn: m.summonedTurn, attacked: m.attacked };
-          if (show) Object.assign(o, pub(m.uid), { atk: atkOf(s, m), def: defOf(s, m), mod: (m.mod || 0) + (m.tmp || 0) });
+          const o = { pos: m.pos, faceUp: true, summonedTurn: m.summonedTurn, attacked: m.attacked };
+          Object.assign(o, pub(m.uid), { atk: atkOf(s, m), def: defOf(s, m), mod: (m.mod || 0) + (m.tmp || 0) });
           return o;
         }),
         sz: pl.sz.map((st) => {
@@ -551,18 +567,20 @@
   }
 
   /* Deck from the binder: owned cards first (3 copies), starters fill to 20. */
+  const MAX_TRAP_COPIES = 2;
   function deckFromCollection(collection) {
     const set = (collection && collection.edition_one) || {};
     const CARDS = global.LLCData.CARDS;
     const owned = CARDS.filter((c) => set[c.id] && set[c.id].owned);
     const out = [];
-    owned.forEach((c) => { for (let k = 0; k < 3 && out.length < DECK_SIZE; k++) out.push({ id: c.id, foil: !!set[c.id].foil }); });
+    const cap = (c) => (c.kind === "trap" ? MAX_TRAP_COPIES : 3);
+    owned.forEach((c) => { for (let k = 0; k < cap(c) && out.length < DECK_SIZE; k++) out.push({ id: c.id, foil: !!set[c.id].foil }); });
     const starters = CARDS.filter((c) => !(set[c.id] && set[c.id].owned));
     let guard = 0;
     while (out.length < DECK_SIZE && starters.length && guard++ < 100) {
       starters.forEach((c) => { if (out.length < DECK_SIZE && out.filter((x) => x.id === c.id).length < 2) out.push({ id: c.id, foil: false }); });
       if (out.length < DECK_SIZE && starters.every((c) => out.filter((x) => x.id === c.id).length >= 2)) {
-        CARDS.forEach((c) => { if (out.length < DECK_SIZE && out.filter((x) => x.id === c.id).length < 3) out.push({ id: c.id, foil: !!(set[c.id] && set[c.id].foil) }); });
+        CARDS.forEach((c) => { if (out.length < DECK_SIZE && out.filter((x) => x.id === c.id).length < cap(c)) out.push({ id: c.id, foil: !!(set[c.id] && set[c.id].foil) }); });
       }
     }
     while (out.length < DECK_SIZE) out.push({ id: "dot_dummy", foil: false });
@@ -575,7 +593,7 @@
     return list.every((c) => {
       if (!c || !def(c.id)) return false;
       counts[c.id] = (counts[c.id] || 0) + 1;
-      return counts[c.id] <= 3;
+      return counts[c.id] <= (def(c.id).kind === "trap" ? MAX_TRAP_COPIES : 3);
     });
   }
 

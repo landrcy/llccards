@@ -38,8 +38,10 @@
         const now = outcome(A);
         if (!bad(now)) return { a: "respond", slot: null };
         if (smudge && !bad(outcome(Math.max(0, A - 300)))) return { a: "respond", slot: smudge.slot };
-        if (whoops) return { a: "respond", slot: whoops.slot };
-        if (smudge) return { a: "respond", slot: smudge.slot };
+        // WHOOPS! costs LP and only one trap fires per turn: save it for real threats
+        const big = (now.lost && tgt && (BY()[tgt.id].stars >= 3)) || now.dmg >= 900;
+        if (whoops && big && P.lp > 900) return { a: "respond", slot: whoops.slot };
+        if (smudge && now.dmg - 300 < now.dmg && !now.lost) return { a: "respond", slot: smudge.slot };
         return { a: "respond", slot: null };
       }
       return null;
@@ -47,7 +49,7 @@
     if (V.active !== me || V.winner != null || V.pending) return null;
 
     const oppMons = O.mz.map((m, slot) => (m ? Object.assign({ slot }, m) : null)).filter(Boolean);
-    const oppMaxAtk = oppMons.reduce((mx, m) => Math.max(mx, m.faceUp && m.pos === "atk" ? m.atk : m.faceUp ? 0 : 900), 0);
+    const oppMaxAtk = oppMons.reduce((mx, m) => Math.max(mx, m.pos === "atk" ? m.atk : 0), 0);
 
     if (V.phase === "main") {
       /* 1. Erase the best legal enemy target */
@@ -62,7 +64,7 @@
       /* 2. Ink Flood when it opens up an Erase */
       const hasErase = P.hand.some((c) => c.id === "erase");
       const ink = P.hand.find((c) => c.id === "ink_flood" && (L.hand[c.uid] || []).includes("activate"));
-      if (ink && hasErase && oppMons.some((m) => m.faceUp && m.atk > 1000 && m.atk - 400 <= 1000)) {
+      if (ink && hasErase && oppMons.some((m) => m.atk > 1000 && m.atk - 400 <= 1000)) {
         return { a: "activate", uid: ink.uid };
       }
       /* 3. Quick Sketch */
@@ -90,7 +92,7 @@
           return { a: mode, uid: pick.uid, tributes: trib };
         }
       }
-      /* 5. Flip / switch positions */
+      /* 5. Switch positions */
       for (let slot = 0; slot < P.mz.length; slot++) {
         const m = P.mz[slot];
         if (!m || !(L.mz[slot] || []).includes("pos")) continue;
@@ -116,10 +118,9 @@
         let best = null, bestScore = -1;
         oppMons.forEach((t) => {
           let win = false, score = 0;
-          if (!t.faceUp) { win = m.atk >= 1400; score = 600; }
-          else if (t.pos === "atk") { win = m.atk > t.atk; score = t.atk + (m.atk - t.atk); }
+          if (t.pos === "atk") { win = m.atk > t.atk; score = t.atk + (m.atk - t.atk); }
           else { win = m.atk > t.def; score = t.atk; }
-          if (t.faceUp && t.id === "dot_dummy") score -= 400;
+          if (t.id === "dot_dummy") score -= 400;
           if (win && score > bestScore) { best = t; bestScore = score; }
         });
         if (best) return { a: "attack", slot: m.slot, target: best.slot };

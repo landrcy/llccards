@@ -1,16 +1,5 @@
 Typography in LLC Cards
 
-Bagel Fat One Regular
-  Designers: Kyungwon Kim, JAMO
-  Source:    https://github.com/JAMO-TYPEFACE/BagelFat
-             also on Google Fonts
-  License:   SIL Open Font License 1.1 (OFL)
-             See OFL-BagelFatOne.txt in this folder.
-  Free for personal and commercial use. May be embedded in a
-  website or app. The font itself may not be sold on its own.
-
-This replaced the earlier Ms Paint Mouse stand-in, so on-screen
-type is closer to the chunky rounded marker lettering in Landry's
-logo ("cards"). The named Pixel Paint font was not found.
-
-The logo and card back are Landry's drawings, cleaned to 1-bit.
+LLC Hand Regular
+  Traced from Finley (landrcy)'s own font sheet; project font, all rights reserved by the author.
+  Files: LLCHand-Regular.woff2, LLCHand-Regular.ttf

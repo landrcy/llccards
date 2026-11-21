@@ -10,13 +10,13 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=5">
-  <link rel="stylesheet" href="css/duel.css?v=5">
+  <link rel="stylesheet" href="css/game.css?v=8">
+  <link rel="stylesheet" href="css/duel.css?v=8">
 </head>
 <body>
   
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png?v=4" alt="LLC Cards">
+    <img class="logo" src="assets/logo.png?v=8" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
   </section>
 
@@ -27,14 +27,16 @@
       <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map" src="assets/map.png?v=4" alt="Hand-drawn map with a shop and a battle arena" width="1024" height="704">
-      <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
-      <button type="button" class="hotspot" id="hot-battle" aria-label="Battle arena"></button>
+      <img class="map-src" id="map-src" src="assets/map.png?v=8" alt="" aria-hidden="true">
+      <canvas class="map-canvas" id="map-canvas" role="img" aria-label="Hand-drawn map with a shop, a trampoline battle arena and a PLAY NOW sign"></canvas>
+      <div class="map-stage" id="map-stage">
+        <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
+        <button type="button" class="hotspot" id="hot-battle" aria-label="Battle arena"></button>
+        <button type="button" class="hotspot" id="hot-play" aria-label="Play now"></button>
+      </div>
     </div>
-    <p class="map-hint">shop for packs  ·  battle in the arena</p>
-    <button type="button" class="credits-btn" id="btn-credits">credits</button>
+    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=8" alt="credits" width="123" height="48"></button>
   </section>
-
   <section id="screen-shop" class="screen" aria-label="The shop">
     <div class="topbar">
       <div class="tb-l"><button type="button" id="btn-shop-back">Map</button></div>
@@ -43,15 +45,15 @@
     </div>
     <div class="shelf" id="shelf">
       <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
-        <img src="assets/pack_edition_one.png?v=4" alt="">
+        <img src="assets/pack_edition_one.png?v=8" alt="">
         <span class="label">LLC CARDS<br>EDITION ONE<br>FREE — tap to open</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-a" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=4" alt="">
+        <img src="assets/pack_locked.png?v=8" alt="">
         <span class="label">PACK TWO</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=4" alt="">
+        <img src="assets/pack_locked.png?v=8" alt="">
         <span class="label">PACK THREE</span>
       </button>
     </div>
@@ -63,16 +65,16 @@
   <section id="screen-opening" class="screen" aria-label="Pack opening">
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
-        <img id="pack-live-img" src="assets/pack_edition_one.png?v=4" alt="Edition One pack">
+        <img id="pack-live-img" src="assets/pack_edition_one.png?v=8" alt="Edition One pack">
         <div class="pack-rip" id="pack-rip" hidden>
-          <img class="rip-top" src="assets/pack_rip_top.png?v=4" alt="">
-          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=4" alt="">
+          <img class="rip-top" src="assets/pack_rip_top.png?v=8" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=8" alt="">
         </div>
         <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
       <div class="badge-row" id="badge-row" hidden>
         <div class="new-pop" id="new-pop" hidden>
-          <img class="burst" src="assets/ui/new_burst.png?v=4" alt="">
+          <img class="burst" src="assets/ui/new_burst.png?v=8" alt="">
           <div class="word">NEW!</div>
         </div>
         <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
@@ -127,43 +129,75 @@
         <ul>
           <li>Both players start with 4000 LP. Hit 0 and you lose. Run out of cards to draw and you lose.</li>
           <li>Each turn: DRAW, MAIN, BATTLE, END. The first player skips the first draw and cannot attack turn 1.</li>
-          <li>MAIN: summon or set 1 monster per turn. 5-star monsters need 1 tribute. Cast spells, set spells and traps.</li>
+          <li>MAIN: play 1 monster per turn, face-up in ATTACK or DEFENSE mode (no face-down monsters). 5-star monsters need 1 tribute. Cast spells, or set spells and traps face-down.</li>
           <li>Monsters cannot attack the turn they are played (STICK RUNNER can). Change a monster's position once per turn.</li>
           <li>BATTLE: ATK vs ATK, the weaker one is destroyed and its owner takes the difference. ATK vs DEF, the defender is destroyed if ATK is higher; if DEF is higher, the attacker's owner takes the difference.</li>
           <li>No monsters on the other side? Attack directly.</li>
-          <li>Set traps fire on the opponent's turn when they attack.</li>
+          <li>Set traps fire on the opponent's turn when they attack. Only 1 trap per turn; WHOOPS! costs 300 LP and only stops monsters with 1500+ ATK. Max 2 copies of each trap in a deck.</li>
+          <li>Too many cards at the end of your turn? Your hand turns red: tap a card, then tap it again to discard it.</li>
         </ul>
       </details>
     </div>
   </section>
 
   <section id="screen-duel" class="screen" aria-label="Duel">
+    <aside class="detail-panel sketch-box" id="detail-panel" aria-live="polite">
+      <div class="dp-card" id="dp-card"></div>
+      <div class="dp-text">
+        <h3 class="dp-name" id="dp-name">HOVER A CARD</h3>
+        <div class="dp-stars" id="dp-stars"></div>
+        <p class="dp-type" id="dp-type">Point at any card to read it here.</p>
+        <p class="dp-stats" id="dp-stats"></p>
+        <p class="dp-now" id="dp-now"></p>
+        <p class="dp-effect" id="dp-effect"></p>
+      </div>
+      <div class="dp-btns" id="dp-btns"></div>
+    </aside>
     <div class="board" id="board">
-      <div class="side opp" id="side-opp">
+      <div class="opp-top">
         <div class="hand-row opp-hand" id="opp-hand"></div>
+      </div>
+      <div class="field">
         <div class="zone-row" id="opp-sz"></div>
-        <div class="zone-row" id="opp-mz"></div>
-      </div>
-      <div class="mid sketch-box" id="duel-mid">
-        <div class="lp opp-lp"><span class="who" id="opp-name">BOT</span><span class="num" id="opp-lp">4000</span></div>
-        <div class="mid-center">
-          <div class="phases" id="phases">
-            <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
+        <div class="zone-row mz-row" id="opp-mz"></div>
+        <div class="mid sketch-box" id="duel-mid">
+          <div class="lp opp-lp"><span class="who" id="opp-name">BOT</span><span class="num" id="opp-lp">4000</span></div>
+          <div class="mid-center">
+            <div class="phases" id="phases">
+              <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
+            </div>
+            <p class="duel-log" id="duel-log"></p>
           </div>
-          <p class="duel-log" id="duel-log"></p>
+          <div class="lp my-lp"><span class="who">YOU</span><span class="num" id="my-lp">4000</span></div>
         </div>
-        <div class="lp my-lp"><span class="who">YOU</span><span class="num" id="my-lp">4000</span></div>
-      </div>
-      <div class="side mine" id="side-me">
-        <div class="zone-row" id="my-mz"></div>
+        <div class="zone-row mz-row" id="my-mz"></div>
         <div class="zone-row" id="my-sz"></div>
-        <div class="hand-row my-hand" id="my-hand"></div>
       </div>
+      <p class="hint" id="duel-hint"></p>
+      <div class="hand-row my-hand" id="my-hand"></div>
       <div class="duel-actions">
         <button type="button" id="btn-menu" class="small">MENU</button>
         <button type="button" id="btn-next" class="next">BATTLE &gt;</button>
       </div>
     </div>
+    <aside class="log-panel sketch-box">
+      <h3>BATTLE LOG</h3>
+      <ol class="log-list" id="log-list"></ol>
+    </aside>
+    <svg class="arrow-layer" id="arrow-layer" aria-hidden="true"></svg>
+    <div class="clash" id="clash" hidden>
+      <div class="clash-box sketch-box">
+        <div class="clash-row">
+          <div class="clash-side" id="clash-a"></div>
+          <div class="clash-vs">VS</div>
+          <div class="clash-side" id="clash-d"></div>
+        </div>
+        <p class="clash-nums" id="clash-nums"></p>
+        <p class="clash-result" id="clash-result"></p>
+        <p class="clash-skip">tap to skip</p>
+      </div>
+    </div>
+    <div class="trap-flash" id="trap-flash" hidden><span id="trap-flash-text"></span></div>
     <div class="banner" id="duel-banner" hidden>
       <p id="banner-text"></p>
       <div class="banner-btns" id="banner-btns"></div>
@@ -175,6 +209,16 @@
           <p class="sheet-info" id="sheet-info"></p>
           <div class="sheet-btns" id="sheet-btns"></div>
         </div>
+      </div>
+    </div>
+    <div class="grave-view" id="grave-view" hidden>
+      <div class="grave-box sketch-box" role="dialog" aria-modal="true" aria-labelledby="grave-title">
+        <div class="grave-head">
+          <h3 id="grave-title">YOUR GRAVEYARD</h3>
+          <button type="button" class="small grave-x" id="grave-x" aria-label="Close graveyard">X</button>
+        </div>
+        <p class="grave-sub" id="grave-sub"></p>
+        <div class="grave-grid" id="grave-grid"></div>
       </div>
     </div>
     <div class="float-layer" id="float-layer" aria-hidden="true"></div>
@@ -197,7 +241,7 @@
       <h2 id="credits-title">CREDITS</h2>
       <div class="credits-body">
         <p><b>Game, cards and art</b><br>Finley's LLC logo and card back. Card art and UI drawn for LLC Cards.</p>
-        <p><b>Font</b><br>Bagel Fat One by Kyungwon Kim and JAMO (SIL OFL 1.1).</p>
+        <p><b>Font</b><br>LLC Hand, built from Finley's font sheet.</p>
         <p><b>Music</b><br>"Chill lofi inspired" by omfgdude, loop edit by qubodup (CC0), and "Lofi Hip Hop Loop" by omfgdude (CC0), opengameart.org.</p>
         <p><b>Sounds</b><br>Casino Audio, Interface Sounds, Impact Sounds and Music Jingles by Kenney (CC0), kenney.nl.<br>Paper rip from Various Paper Sound Effects by Luckius (CC0), opengameart.org.</p>
         <p><b>Online play</b><br>PeerJS (MIT) and the free PeerJS cloud server.</p>
@@ -207,15 +251,15 @@
     </div>
   </div>
 
-  <script src="js/audio.js?v=6"></script>
-  <script src="js/data.js?v=5"></script>
-  <script src="js/storage.js?v=5"></script>
-  <script src="js/foil.js?v=5"></script>
-  <script src="js/engine.js?v=5"></script>
-  <script src="js/ai.js?v=5"></script>
+  <script src="js/audio.js?v=8"></script>
+  <script src="js/data.js?v=8"></script>
+  <script src="js/storage.js?v=8"></script>
+  <script src="js/foil.js?v=8"></script>
+  <script src="js/engine.js?v=8"></script>
+  <script src="js/ai.js?v=8"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
-  <script src="js/net.js?v=5"></script>
-  <script src="js/game.js?v=5"></script>
-  <script src="js/duel.js?v=5"></script>
+  <script src="js/net.js?v=8"></script>
+  <script src="js/game.js?v=8"></script>
+  <script src="js/duel.js?v=8"></script>
 </body>
 </html>

@@ -6,21 +6,23 @@ Playable: title, map, shop, Edition One pack opening, a 10-slot binder, and the 
 
 ## Duels
 
-Yu-Gi-Oh-style, 4000 LP each, 20-card deck built from your binder (3 copies of each card you own, starters fill the rest). Phases: draw, main, battle, end. One normal summon or set per turn, 5-star monsters need 1 tribute, spells and traps can be set, traps fire on the opponent's attack. Monsters can't attack the turn they're played (except Stick Runner) and nobody attacks on turn 1.
+Yu-Gi-Oh-style, 4000 LP each, 20-card deck built from your binder (3 copies of each monster/spell you own, max 2 of each trap; starters fill the rest). Phases: draw, main, battle, end. One normal summon per turn, in attack or defense mode. **Monsters are always face-up**: "set" means face-up defense mode (card turned sideways, DEF shown). Only spells and traps are set face-down. 5-star monsters need 1 tribute. Monsters can't attack the turn they're played (except Stick Runner) and nobody attacks on turn 1.
 
-Rules live in `js/engine.js` (pure, host-authoritative), the bot in `js/ai.js`, the board in `js/duel.js`. Online play is WebRTC peer-to-peer through the free PeerJS cloud signalling server (`js/net.js`, PeerJS vendored under MIT). The host runs the rules and sends each player a redacted view, so you never receive the other hand.
+Traps fire on the opponent's attack, **at most one trap per player per turn**. SMUDGE (2★): the attacker loses 300 ATK this turn. WHOOPS! (4★, rarer): pay 300 LP to stop an attack by a monster with 1500+ ATK.
+
+Board: hover or tap any card to read it in the detail panel (desktop) or sheet (phone); every attack draws an arrow and shows a clash pop-up (tap to skip); the battle log keeps the last 40 events. Tap either GRAVE pile to browse that graveyard, newest first. When you must discard, your hand turns red with a pulsing DISCARD label: tap a card to mark it with a red X, tap again (or THROW IT AWAY) to send it to the graveyard. Red is the one deliberate exception to black and white.
+
+Rules live in `js/engine.js` (pure, host-authoritative), the bot in `js/ai.js`, the board in `js/duel.js`. Online play is WebRTC peer-to-peer through the free PeerJS cloud signalling server (`js/net.js`, PeerJS vendored under MIT). The host runs the rules and sends each player a redacted view, so you never receive the other hand. A protocol version check refuses to start a match between two different cached builds (both players are told to refresh), and the board ignores taps while an action is in flight or an animation is playing.
 
 ## Audio
 
-Real downloaded CC0 files only (Kenney, omfgdude, qubodup, Luckius). Nothing is synthesised. See [`assets/audio/CREDITS.txt`](assets/audio/CREDITS.txt). Audio starts on the first tap, and the mute toggle is remembered.
+Real downloaded CC0 files only (Kenney, omfgdude, qubodup, Luckius). Map/shop music: "Chill lofi inspired [loop edit]" (omfgdude, loop edit by qubodup); battle music: "Lofi Hip Hop Loop" (omfgdude). Nothing is synthesised. See [`assets/audio/CREDITS.txt`](assets/audio/CREDITS.txt). Audio starts on the first tap, and the mute toggle is remembered.
 
 Open [the live page](https://landrcy.github.io/llccards/) or just open `index.html` from a local static server (needed so card masks and the font load correctly).
 
 ## Type
 
-On-screen type is **Bagel Fat One** (Regular) by Kyungwon Kim and JAMO, licensed under the SIL Open Font License 1.1. See [`assets/fonts/OFL-BagelFatOne.txt`](assets/fonts/OFL-BagelFatOne.txt) and [`assets/fonts/LICENSE.txt`](assets/fonts/LICENSE.txt). Free for personal and commercial use; the font may be embedded in a website or app, but may not be sold on its own.
-
-The named Pixel Paint font could not be found. Bagel Fat One replaced an earlier Ms Paint Mouse stand-in so the lettering is closer to the chunky rounded marker in Landry's logo.
+On-screen type (UI and card lettering) is **LLC Hand**, a pixel-outline webfont traced from Finley's font sheet (`assets/fonts/LLCHand-Regular.woff2`, `.ttf`).
 
 The logo and card back are Landry's drawings, cleaned to 1-bit.
 
