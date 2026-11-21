@@ -28,8 +28,9 @@
         const outcome = (atk) => {
           if (!tgt) return { lost: false, dmg: atk };
           const myVal = tgt.pos === "atk" ? tgt.atk : tgt.def;
-          if (tgt.pos === "atk") return { lost: atk > myVal && tgt.id !== "dot_dummy", dmg: Math.max(0, atk - myVal) };
-          return { lost: atk > myVal && tgt.id !== "dot_dummy", dmg: 0 };
+          const shield = tgt.id === "dot_dummy" && !P.dummyUsed;
+          if (tgt.pos === "atk") return { lost: atk > myVal && !shield, dmg: Math.max(0, atk - myVal) };
+          return { lost: atk > myVal && !shield, dmg: 0 };
         };
         const bad = (o) => o.lost || o.dmg >= 500;
         const ids = pd.options.map((slot) => ({ slot, id: P.sz[slot].id }));
@@ -120,7 +121,7 @@
           let win = false, score = 0;
           if (t.pos === "atk") { win = m.atk > t.atk; score = t.atk + (m.atk - t.atk); }
           else { win = m.atk > t.def; score = t.atk; }
-          if (t.id === "dot_dummy") score -= 400;
+          if (t.id === "dot_dummy" && !O.dummyUsed) score -= 400;
           if (win && score > bestScore) { best = t; bestScore = score; }
         });
         if (best) return { a: "attack", slot: m.slot, target: best.slot };

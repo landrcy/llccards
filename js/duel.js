@@ -48,7 +48,7 @@
     $("arena-wait").classList.add("error");
   }
 
-  const PROTO = 2;   // bump when rules or sync change, so mismatched builds never play each other
+  const PROTO = 3;   // bump when rules or sync change, so mismatched builds never play each other
   const hello = () => ({ v: PROTO, name: myName, deck: myDeck().cards });
   const netHandlers = {
     onStatus: (t) => { $("wait-sub").textContent = t; },
@@ -208,7 +208,7 @@
     $("trap-flash").hidden = true;
     $("arrow-layer").innerHTML = "";
     $("log-list").innerHTML = ""; $("log-list").dataset.key = "";
-    ui.pinned = null; ui.lastSeen = null; ui.atkFrom = null;
+    ui.pinned = null; ui.lastSeen = null; ui.atkFrom = null; ui.anchorKey = null; hidePop();
     fillDetail(null, null, "", null);
   }
   function startBot() {
@@ -243,6 +243,7 @@
   }
 
   $("btn-menu").addEventListener("click", () => {
+    ui.anchorKey = null;
     openSheet(null, "MENU\nLeaving a duel counts as a loss.", [
       { label: LLCAudio.muted ? "SOUND: OFF" : "SOUND: ON", fn: () => { LLCAudio.setMuted(!LLCAudio.muted); closeSheet(); } },
       { label: "LEAVE", fn: () => { if (ui.ctl && ui.V && ui.V.winner == null) ui.ctl.act({ a: "concede" }); closeSheet(); LLC.show("arena"); } },
@@ -313,13 +314,54 @@
     });
   }
   // pinned = what the panel falls back to when the pointer leaves a card
-  function showDetail(c, item) { if (isWide()) fillDetail(c, item, "", null); }
+  function showDetail(c, item) { if (isWide() && !ui.pinned) fillDetail(c, item, "", null); }
   function restoreDetail() {
     if (!isWide()) return;
     const p = ui.pinned;
     if (p) fillDetail(p.c, p.item, p.info, p.btns);
     else fillDetail(ui.lastSeen ? ui.lastSeen.c : null, ui.lastSeen ? ui.lastSeen.item : null, "", null);
+    placePop();
   }
+  /* ---- desktop action menu: pops up right next to the clicked card ---- */
+  function anchorEl(key) {
+    if (!key) return null;
+    if (key.startsWith("h")) return document.querySelector('#my-hand .hcard[data-uid="' + key.slice(1) + '"]');
+    const [p, kind, slot] = key.slice(1).split(":");
+    return zoneNode(Number(p), kind, Number(slot));
+  }
+  function hidePop() { const pop = $("act-pop"); pop.hidden = true; pop._btns = null; document.querySelectorAll(".sel-lock").forEach((n) => n.classList.remove("sel-lock")); }
+  function placePop(opts) {
+    const pop = $("act-pop");
+    const P = ui.pinned;
+    const el = P && P.key && isWide() && P.btns && P.btns.length ? anchorEl(P.key) : null;
+    if (!el || $("screen-duel").offsetParent === null && !$("screen-duel").classList.contains("active")) { hidePop(); return; }
+    document.querySelectorAll(".sel-lock").forEach((n) => { if (n !== el) n.classList.remove("sel-lock"); });
+    el.classList.add("sel-lock");
+    if (pop._btns !== P.btns) {
+      pop._btns = P.btns;
+      const box = $("act-pop-btns");
+      box.innerHTML = "";
+      $("act-pop-name").textContent = P.c && P.c.id ? BY[P.c.id].name : "";
+      P.btns.forEach((b) => {
+        const x = document.createElement("button");
+        x.type = "button"; x.textContent = b.label;
+        x.addEventListener("click", (ev) => { ev.stopPropagation(); b.fn(); });
+        box.appendChild(x);
+      });
+    }
+    pop.hidden = false;
+    const r = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight, m = 8;
+    let x, y;
+    if (P.key.startsWith("h")) { x = r.left + r.width / 2 - pw / 2; y = r.top - ph - 10; if (y < m) y = r.bottom + 10; }
+    else { x = r.right + 10; y = r.top + r.height / 2 - ph / 2; if (x + pw > vw - m) x = r.left - pw - 10; }
+    x = Math.max(m, Math.min(vw - pw - m, x)); y = Math.max(m, Math.min(vh - ph - m, y));
+    pop.style.left = Math.round(x) + "px"; pop.style.top = Math.round(y) + "px";
+    // the selected card lifts (CSS transition); settle the menu once it has moved
+    clearTimeout(ui.popT);
+    if (!opts || !opts.settle) ui.popT = setTimeout(() => placePop({ settle: true }), 230);
+  }
+  function unpin() { ui.pinned = null; restoreDetail(); }
   function hoverable(el, getC, getItem) {
     el.addEventListener("mouseenter", () => showDetail(getC(), getItem ? getItem() : null));
     el.addEventListener("mouseleave", restoreDetail);
@@ -331,7 +373,7 @@
     if (!c || c.hidden || !c.id) {
       const el = document.createElement("div");
       el.className = "llc-card back-only";
-      el.innerHTML = '<img src="assets/card_back.png?v=8" alt="Face-down card" draggable="false">';
+      el.innerHTML = '<img src="assets/card_back.png?v=9" alt="Face-down card" draggable="false">';
       return el;
     }
     return LLCFoil.createCard(BY[c.id], { foil: !!c.foil, face: "front" });
@@ -367,6 +409,13 @@
         st.className = "stat " + (isDef ? "is-def" : "is-atk") + (val > base ? " up" : val < base ? " down" : "");
         st.innerHTML = '<span class="lbl">' + (isDef ? "DEF" : "ATK") + '</span><b>' + val + "</b>";
         z.appendChild(st);
+        if (item.id === "dot_dummy" && ui.V) {
+          const used = !!ui.V.players[p].dummyUsed;
+          const t = document.createElement("span");
+          t.className = "shield-tag" + (used ? " used" : "");
+          t.textContent = used ? "SHIELD USED" : "SHIELD READY";
+          z.appendChild(t);
+        }
       }
       hoverable(z, () => item, () => item);
     }
@@ -493,6 +542,7 @@
       }
       else if (!sel && myTurn && !V.pending && (L.hand[c.uid] || []).length) h.classList.add("can-act");
       h.addEventListener("click", () => onHand(c));
+      h.addEventListener("dblclick", () => defaultHand(c));
       hoverable(h, () => c);
       hand.appendChild(h);
     });
@@ -655,7 +705,7 @@
       cell.addEventListener("click", () => {
         grid.querySelectorAll(".grave-cell.on").forEach((x) => x.classList.remove("on"));
         cell.classList.add("on");
-        if (isWide()) { ui.pinned = { c, item: null, info: "IN THE GRAVEYARD", btns: null }; restoreDetail(); }
+        if (isWide()) { ui.pinned = { c, item: null, info: "IN THE GRAVEYARD", btns: null, key: null }; restoreDetail(); }
         else openSheet(c, describe(BY[c.id]) + "\nIn the graveyard.", [{ label: "BACK", fn: closeSheet }]);
       });
       hoverable(cell, () => c);
@@ -803,7 +853,7 @@
         else side(D, e.dId, e.D, e.dPos === "def" ? "DEF" : "ATK", e.dDestroyed);
         nums = e.target == null ? "ATK " + e.A + "  >  DIRECT" : "ATK " + e.A + "  vs  " + (e.dPos === "def" ? "DEF " : "ATK ") + e.D;
         const bits = [];
-        if (e.saved) bits.push("DOT DUMMY SHRUGS IT OFF");
+        if (e.saved) bits.push("DOT DUMMY SHRUGS IT OFF (SHIELD USED UP)");
         if (e.dmg) { bits.push(who(e.dmgTo) + "  -" + e.dmg + " LP"); loser = e.dmgTo; }
         else if (!e.aDestroyed && !e.dDestroyed && !e.saved) bits.push("NO DAMAGE");
         result = bits.join("  ·  ") || (e.aDestroyed && e.dDestroyed ? "BOTH DESTROYED" : "DESTROYED");
@@ -866,6 +916,7 @@
       }
     }
     if (!(V.pending && V.pending.type === "trap")) clearArrow();
+    if (prev && V.seq !== prev.seq && ui.pinned && ui.pinned.key) ui.pinned = null;
     ui.V = V;
     if (ui.select && (!V.legal || V.active !== V.me)) ui.select = null;
     // remember the most recent card for the detail panel's idle state
@@ -907,6 +958,9 @@
       return;
     }
     if (ui.select) return;
+    const key = "h" + c.uid;
+    if (isWide() && ui.pinned && ui.pinned.key === key) { unpin(); return; }
+    ui.anchorKey = key;
     const opts = (V.legal.hand[c.uid]) || [];
     const card = BY[c.id];
     const btns = [];
@@ -924,6 +978,16 @@
     else if (!btns.length && V.phase === "battle") info = "Cards are played in your MAIN phase.";
     btns.push({ label: "CLOSE", fn: closeSheet });
     openSheet(c, info, btns);
+  }
+
+  function defaultHand(c) {
+    const V = ui.V;
+    if (!V || V.winner != null || busy() || discarding(V) || ui.select) return;
+    const opts = (V.legal.hand[c.uid]) || [];
+    ui.pinned = null; ui.anchorKey = null; restoreDetail(); closeSheet();
+    if (opts.includes("activate")) doCast({ uid: c.uid }, c.id);
+    else if (opts.includes("summon")) doSummon(c, "summon");
+    else if (opts.includes("setst")) ui.ctl.act({ a: "setst", uid: c.uid });
   }
 
   function doSummon(c, mode) {
@@ -994,6 +1058,9 @@
     const pl = V.players[p];
     const item = (kind === "mz" ? pl.mz : pl.sz)[slot];
     if (!item) return;
+    const key = "z" + p + ":" + kind + ":" + slot;
+    if (isWide() && ui.pinned && ui.pinned.key === key) { unpin(); return; }
+    ui.anchorKey = key;
     const mine = p === V.me;
     const btns = [];
     let info = "";
@@ -1035,7 +1102,8 @@
   function openSheet(c, info, btns, item) {
     const real = btns.filter((b) => b.label !== "CLOSE");
     if (isWide() && c !== null) {
-      ui.pinned = { c, item: item || null, info, btns: real };
+      ui.pinned = { c, item: item || null, info, btns: real, key: ui.anchorKey || null };
+      ui.anchorKey = null;
       restoreDetail();
       return;
     }
@@ -1071,6 +1139,12 @@
     if (!$("grave-view").hidden) { closeGrave(); return; }
     if (ui.select) { ui.select = null; render(); return; }
     if (ui.pinned) { ui.pinned = null; restoreDetail(); }
+  });
+  // clicking anywhere that isn't a card, the menu or the panel drops the selection
+  document.addEventListener("click", (e) => {
+    if (!ui.pinned || !ui.pinned.key) return;
+    if (e.target.closest(".zone.full, .hcard, .pile, #act-pop, #detail-panel, #duel-sheet, .grave-view, .banner")) return;
+    unpin();
   });
   // clicking empty board space drops a pinned card
   $("board").addEventListener("click", (e) => {

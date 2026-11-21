@@ -294,9 +294,11 @@
     const dName = cardOf(s, d.uid).name;
     clash.dId = s.cards[d.uid].id;
     clash.dPos = d.pos;
+    // DOT DUMMY: once per MATCH per player (a second copy doesn't get another shield)
     const survives = (m) => {
-      if (cardOf(s, m.uid).id === "dot_dummy" && !m.dummyUsed) {
-        m.dummyUsed = true;
+      const owner = s.cards[m.uid].owner;
+      if (cardOf(s, m.uid).id === "dot_dummy" && !s.players[owner].dummyUsed) {
+        s.players[owner].dummyUsed = true;
         clash.saved = true;
         return true;
       }
@@ -334,7 +336,7 @@
         line += "it holds, {P" + p + ":takes|take} " + (D - A) + ".";
       } else line += "it holds, no damage.";
     }
-    if (clash.saved) line += " (DOT DUMMY's shield)";
+    if (clash.saved) line += " (DOT DUMMY's once-per-match shield is now used up)";
     log(s, ev, line);
     ev.push(clash);
     if (clash.dDestroyed) { kill(o, target); boxKnight(); if (cardOf(s, a.uid).id === "box_knight" && mon(s, p, slot)) log(s, ev, "BOX KNIGHT gains 200 ATK."); }
@@ -542,7 +544,7 @@
         name: pl.name, lp: pl.lp, deck: pl.deck.length,
         grave: pl.grave.map(pub),
         hand: i === p ? pl.hand.map(pub) : pl.hand.map(() => ({ hidden: true })),
-        summoned: pl.summoned,
+        summoned: pl.summoned, dummyUsed: !!pl.dummyUsed,
         mz: pl.mz.map((m) => {
           if (!m) return null;
           const o = { pos: m.pos, faceUp: true, summonedTurn: m.summonedTurn, attacked: m.attacked };

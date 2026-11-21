@@ -1,7 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "8"; window.LLC_ASSET_V = ASSET_V;
+  const ASSET_V = "9"; window.LLC_ASSET_V = ASSET_V;
   const reduced = () =>
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 

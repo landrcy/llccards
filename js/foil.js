@@ -83,7 +83,7 @@
     el.className = "llc-card" + (foil ? " is-foil" : "") + (face === "back" ? " is-back" : "");
     el.dataset.id = card.id;
     const alt = card.name || card.id;
-    const v = (window.LLC_ASSET_V || "8");
+    const v = (window.LLC_ASSET_V || "9");
     const mask = 'url("assets/masks/' + card.id + '.png?v=' + v + '")';
     el.style.setProperty("--card-mask", mask);
     el.innerHTML =

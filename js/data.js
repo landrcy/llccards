@@ -9,7 +9,7 @@
 
   const CARDS = [
     { id: "dot_dummy", name: "DOT DUMMY", stars: 1, kind: "monster",
-      effect: "Once per turn: cannot be destroyed by battle.",
+      effect: "Once per match: cannot be destroyed by battle.",
       atk: 200, def: 400 },
     { id: "smudge", name: "SMUDGE", stars: 2, kind: "trap",
       effect: "When attacked: the attacker loses 300 ATK this turn.",

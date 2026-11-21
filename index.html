@@ -10,13 +10,13 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=8">
-  <link rel="stylesheet" href="css/duel.css?v=8">
+  <link rel="stylesheet" href="css/game.css?v=9">
+  <link rel="stylesheet" href="css/duel.css?v=9">
 </head>
 <body>
   
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png?v=8" alt="LLC Cards">
+    <img class="logo" src="assets/logo.png?v=9" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
   </section>
 
@@ -27,7 +27,7 @@
       <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map-src" id="map-src" src="assets/map.png?v=8" alt="" aria-hidden="true">
+      <img class="map-src" id="map-src" src="assets/map.png?v=9" alt="" aria-hidden="true">
       <canvas class="map-canvas" id="map-canvas" role="img" aria-label="Hand-drawn map with a shop, a trampoline battle arena and a PLAY NOW sign"></canvas>
       <div class="map-stage" id="map-stage">
         <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
@@ -35,7 +35,7 @@
         <button type="button" class="hotspot" id="hot-play" aria-label="Play now"></button>
       </div>
     </div>
-    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=8" alt="credits" width="123" height="48"></button>
+    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=9" alt="credits" width="123" height="48"></button>
   </section>
   <section id="screen-shop" class="screen" aria-label="The shop">
     <div class="topbar">
@@ -45,15 +45,15 @@
     </div>
     <div class="shelf" id="shelf">
       <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
-        <img src="assets/pack_edition_one.png?v=8" alt="">
+        <img src="assets/pack_edition_one.png?v=9" alt="">
         <span class="label">LLC CARDS<br>EDITION ONE<br>FREE — tap to open</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-a" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=8" alt="">
+        <img src="assets/pack_locked.png?v=9" alt="">
         <span class="label">PACK TWO</span>
       </button>
       <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=8" alt="">
+        <img src="assets/pack_locked.png?v=9" alt="">
         <span class="label">PACK THREE</span>
       </button>
     </div>
@@ -65,16 +65,16 @@
   <section id="screen-opening" class="screen" aria-label="Pack opening">
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
-        <img id="pack-live-img" src="assets/pack_edition_one.png?v=8" alt="Edition One pack">
+        <img id="pack-live-img" src="assets/pack_edition_one.png?v=9" alt="Edition One pack">
         <div class="pack-rip" id="pack-rip" hidden>
-          <img class="rip-top" src="assets/pack_rip_top.png?v=8" alt="">
-          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=8" alt="">
+          <img class="rip-top" src="assets/pack_rip_top.png?v=9" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=9" alt="">
         </div>
         <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
       <div class="badge-row" id="badge-row" hidden>
         <div class="new-pop" id="new-pop" hidden>
-          <img class="burst" src="assets/ui/new_burst.png?v=8" alt="">
+          <img class="burst" src="assets/ui/new_burst.png?v=9" alt="">
           <div class="word">NEW!</div>
         </div>
         <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
@@ -141,6 +141,7 @@
   </section>
 
   <section id="screen-duel" class="screen" aria-label="Duel">
+    <div class="act-pop sketch-box" id="act-pop" role="menu" hidden><div class="act-pop-name" id="act-pop-name"></div><div class="act-pop-btns" id="act-pop-btns"></div></div>
     <aside class="detail-panel sketch-box" id="detail-panel" aria-live="polite">
       <div class="dp-card" id="dp-card"></div>
       <div class="dp-text">
@@ -251,15 +252,15 @@
     </div>
   </div>
 
-  <script src="js/audio.js?v=8"></script>
-  <script src="js/data.js?v=8"></script>
-  <script src="js/storage.js?v=8"></script>
-  <script src="js/foil.js?v=8"></script>
-  <script src="js/engine.js?v=8"></script>
-  <script src="js/ai.js?v=8"></script>
+  <script src="js/audio.js?v=9"></script>
+  <script src="js/data.js?v=9"></script>
+  <script src="js/storage.js?v=9"></script>
+  <script src="js/foil.js?v=9"></script>
+  <script src="js/engine.js?v=9"></script>
+  <script src="js/ai.js?v=9"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
-  <script src="js/net.js?v=8"></script>
-  <script src="js/game.js?v=8"></script>
-  <script src="js/duel.js?v=8"></script>
+  <script src="js/net.js?v=9"></script>
+  <script src="js/game.js?v=9"></script>
+  <script src="js/duel.js?v=9"></script>
 </body>
 </html>
