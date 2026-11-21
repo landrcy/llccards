@@ -109,7 +109,7 @@
     el.className = "llc-card rar-" + rar + (foil ? " is-foil" : "") + (opts.foil ? " foil-pull" : "") + (face === "back" ? " is-back" : "");
     el.dataset.id = card.id;
     const alt = card.name || card.id;
-    const v = (window.LLC_ASSET_V || "12");
+    const v = (window.LLC_ASSET_V || "13");
     const mask = 'url("assets/masks/' + card.id + '.png?v=' + v + '")';
     el.style.setProperty("--card-mask", mask);
     el.innerHTML =

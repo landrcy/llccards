@@ -651,3 +651,22 @@ button.big { font-size: 24px; padding: 12px 16px; }
   .log-panel h3 { font-size: clamp(22px, 1.1vw, 30px); }
   .hint { font-size: clamp(15px, 0.8vw, 22px); }
 }
+/* v13: the bottom bar never shrinks or scrolls away; the board fits by height (JS fitBoard trims --S further) */
+.duel-actions { flex: 0 0 auto; }
+.board { overflow: hidden; }
+@media (min-width: 980px) and (min-aspect-ratio: 5/4) {
+  .board { --S: min(calc((100vw - 2 * var(--side) - 60px) / 3.95), calc((100dvh - 190px) / 6.9), 300px); }
+}
+/* short windows: bars keep a readable minimum width and the small fixed-size text shrinks with the board */
+.mid, .duel-actions { width: min(100%, max(calc(var(--S) * 3.9 + 24px), 360px)); }
+@media (max-height: 760px) and (min-width: 721px) {
+  .stat { padding: 1px 4px 0; gap: 3px; border-width: 2px; }
+  .stat .lbl { font-size: clamp(8px, calc(var(--S) * 0.13), 16px); }
+  .stat b { font-size: clamp(11px, calc(var(--S) * 0.24), 30px); }
+  .lp .num { font-size: clamp(18px, calc(var(--S) * 0.34), 44px); }
+  .phases { font-size: clamp(10px, calc(var(--S) * 0.17), 19px); gap: 2px; }
+  .phases span { padding: 1px 4px; }
+  .duel-actions button { min-height: 36px; }
+  .pile-n { font-size: clamp(9px, calc(var(--S) * 0.15), 16px); }
+}
+.my-hand { margin-bottom: calc(var(--hw) * 0.14); }

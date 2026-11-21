@@ -330,7 +330,7 @@
     (btns || []).forEach((b) => {
       if (b.label === "CLOSE") return;
       const x = document.createElement("button");
-      x.type = "button"; x.textContent = b.label;
+      x.type = "button"; x.textContent = b.label; if (b.disabled) { x.disabled = true; x.classList.add("used"); x.title = b.title || ""; }
       x.addEventListener("click", b.fn);
       box.appendChild(x);
     });
@@ -366,7 +366,7 @@
       $("act-pop-name").textContent = P.c && P.c.id ? BY[P.c.id].name : "";
       P.btns.forEach((b) => {
         const x = document.createElement("button");
-        x.type = "button"; x.textContent = b.label;
+        x.type = "button"; x.textContent = b.label; if (b.disabled) { x.disabled = true; x.classList.add("used"); x.title = b.title || ""; }
         x.addEventListener("click", (ev) => { ev.stopPropagation(); b.fn(); });
         box.appendChild(x);
       });
@@ -514,6 +514,24 @@
     return "";
   }
 
+  /* Fit the board by HEIGHT: the CSS --S formula is a first guess; if the opponent row, hand or the
+     MENU / BATTLE bar would spill past the window (short laptop screens, browser bars), shrink --S until it all fits. */
+  function fitBoard(reset) {
+    const b = $("board");
+    if (!b || !$("screen-duel").classList.contains("active")) return;
+    if (reset) b.style.removeProperty("--S");
+    for (let i = 0; i < 6; i++) {
+      const avail = b.clientHeight, need = b.scrollHeight;
+      if (need <= avail + 1) break;
+      const z = b.querySelector(".zone-row .zone");
+      const S = z ? z.getBoundingClientRect().width : 0;
+      if (!S) break;
+      const next = Math.max(34, Math.floor(S * (avail / need) - 1 - i));
+      if (next >= S) break;
+      b.style.setProperty("--S", next + "px");
+    }
+  }
+
   function render() {
     const V = ui.V;
     if (!V) return;
@@ -602,6 +620,7 @@
     }
 
     renderBanner();
+    fitBoard(false);
     tweenLp();
     if (!$("grave-view").hidden) fillGrave(ui.graveP);
     restoreDetail();
@@ -691,7 +710,7 @@
       const off = i - (n - 1) / 2;
       c.style.marginLeft = i === 0 ? "0" : (step - cw) + "px";
       c.style.setProperty("--rot", (small ? -1 : 1) * off * spread + "deg");
-      c.style.setProperty("--ty", (small ? -1 : 1) * Math.abs(off) * Math.abs(off) * (small ? 0.8 : 1.6) + "px");
+      c.style.setProperty("--ty", (small ? -1 : 1) * Math.min(16, Math.abs(off) * Math.abs(off)) * (small ? 0.8 : 1.6) * Math.min(1, cw / 110) + "px");
       c.style.zIndex = String(i + 1);
     });
   }
@@ -1115,8 +1134,15 @@
     if (opts.includes("activate")) btns.push({ label: "CAST", fn: () => doCast({ uid: c.uid }, c.id) });
     if (opts.includes("setst")) btns.push({ label: "SET FACE-DOWN", fn: () => { closeSheet(); ui.ctl.act({ a: "setst", uid: c.uid }); } });
     let info = "";
-    if (!btns.length && V.active === V.me && V.phase === "main" && !V.pending) {
-      if (card.kind === "monster" && V.players[V.me].summoned) info = "You already played a monster this turn.";
+    const usedUp = card.kind === "monster" && V.active === V.me && V.phase === "main" && !V.pending && V.players[V.me].summoned;
+    if (usedUp) {
+      // one normal summon per turn (attack OR defense, tribute summons included): show the buttons greyed out
+      const t = "Already summoned this turn";
+      btns.push({ label: "SUMMON IN ATTACK", disabled: true, title: t, fn: () => {} });
+      btns.push({ label: "SUMMON IN DEFENSE", disabled: true, title: t, fn: () => {} });
+      info = "Already summoned this turn. You get 1 summon per turn.";
+    } else if (!btns.length && V.active === V.me && V.phase === "main" && !V.pending) {
+      if (card.kind === "monster" && V.players[V.me].summoned) info = "Already summoned this turn.";
       else if (card.kind === "monster" && trib) info = "Needs " + trib + " of your monsters to tribute.";
       else if (card.kind === "trap") info = "No room to set it.";
     } else if (!btns.length && V.active !== V.me) info = "Wait for your turn to play it.";
@@ -1283,7 +1309,7 @@
     box.innerHTML = "";
     btns.forEach((b) => {
       const x = document.createElement("button");
-      x.type = "button"; x.textContent = b.label;
+      x.type = "button"; x.textContent = b.label; if (b.disabled) { x.disabled = true; x.classList.add("used"); x.title = b.title || ""; }
       x.addEventListener("click", b.fn);
       box.appendChild(x);
     });
@@ -1341,7 +1367,7 @@
   }
 
   let rz = null;
-  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (ui.V) render(); }, 80); });
+  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (ui.V) { $("board").style.removeProperty("--S"); render(); fitBoard(true); } }, 80); });
   wideMQ.addEventListener && wideMQ.addEventListener("change", () => { closeSheet(); ui.pinned = null; if (ui.V) render(); });
 
   /* ================= test / autoplay hook ================= */

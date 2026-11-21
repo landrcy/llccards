@@ -705,6 +705,7 @@
       case "summon":
       case "set": {
         const opts = L.hand[act.uid] || [];
+        if (pl.summoned) throw new Error("Already summoned this turn");     // ONE normal summon per turn: attack, defense or tribute
         if (opts.indexOf(act.a) === -1) throw new Error("cannot summon");
         const c = cardOf(s, act.uid);
         const need = tributesNeeded(c, s, p);
@@ -725,7 +726,8 @@
         pl.mz[slot] = newMon(s, act.uid, atkMode ? "atk" : "def");
         pl.summoned = true;
         ev.push({ e: "summon", p, slot, pos: atkMode ? "atk" : "def", id: c.id });
-        log(s, ev, "{P" + p + ":summons|summon} " + c.name + (atkMode ? " in attack mode." : " in defense mode."));
+        log(s, ev, "{P" + p + ":summons|summon} " + c.name + (atkMode ? " in attack mode." : " in defense mode.") + (trib.length ? " (tribute summon)" : ""));
+        log(s, ev, "({O" + p + "} 1 summon for this turn is used)");
         onSummon(s, p, slot, ev);
         break;
       }
@@ -816,12 +818,14 @@
       if (!c) throw new Error("no card");
       const uid = s.nextUid++;
       s.cards[uid] = { uid, id: c.id, foil: false, owner: op.p };
-      if (c.kind === "monster") {
+      if (op.toHand) {
+        pl.hand.push(uid); ev.push({ e: "draw", p: op.p });
+      } else if (c.kind === "monster") {
         const slot = freeSlot(pl.mz);
         if (slot === -1) { delete s.cards[uid]; throw new Error("no room"); }
         pl.mz[slot] = newMon(s, uid, "atk"); pl.mz[slot].summonedTurn = -1;
         ev.push({ e: "summon", p: op.p, slot, pos: "atk", id: c.id });
-      } else if (op.toHand || c.kind === "spell") {
+      } else if (c.kind === "spell") {
         pl.hand.push(uid); ev.push({ e: "draw", p: op.p });
       } else {
         const slot = freeSlot(pl.sz);
