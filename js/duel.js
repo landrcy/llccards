@@ -27,8 +27,9 @@
   /* ================= arena / lobby ================= */
   function renderArena() {
     const d = myDeck();
-    $("deck-line").textContent = "YOUR DECK: 20 CARDS  ·  " + d.owned + " / 10 FROM YOUR BINDER" +
-      (d.owned < 10 ? ", STARTERS FILL THE REST" : "");
+    const total = window.LLCData.CARDS.length;
+    $("deck-line").textContent = "YOUR DECK: 20 CARDS  ·  " + d.owned + " / " + total + " CARDS OWNED" +
+      (d.owned < 20 ? "  ·  COMMON STARTERS FILL THE GAPS" : "  ·  YOUR BEST CARDS ARE IN");
     setWaiting(false);
   }
   function setWaiting(on, title, sub) {
@@ -48,7 +49,7 @@
     $("arena-wait").classList.add("error");
   }
 
-  const PROTO = 3;   // bump when rules or sync change, so mismatched builds never play each other
+  const PROTO = 4;   // bump when rules or sync change, so mismatched builds never play each other
   const hello = () => ({ v: PROTO, name: myName, deck: myDeck().cards });
   const netHandlers = {
     onStatus: (t) => { $("wait-sub").textContent = t; },
@@ -94,7 +95,7 @@
   /* ================= controllers ================= */
   function botController() {
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    const bot = E.deckFromCollection({});
+    const bot = E.botDeck(seed ^ 0x5bd1e995);
     const { state: s, events } = E.create({ seed, decks: [myDeck().cards, bot.cards], names: ["YOU", "BOT"] });
     let timer = null, alive = true;
     const push = (ev) => onView(E.view(s, 0), ev);
@@ -105,10 +106,14 @@
       if (who !== 1) { if (ui.autoplay) autoTick(); return; }
       timer = setTimeout(() => {
         if (!alive || s.winner != null) return;
+        if ((s.pending ? s.pending.player : s.active) !== 1) return;
         const a = LLCAI.decide(E.view(s, 1));
         let ev;
         try { ev = E.apply(s, 1, a || { a: "phase" }); }
-        catch (err) { ev = E.apply(s, 1, s.pending ? (s.pending.type === "trap" ? { a: "respond", slot: null } : { a: "discard", uid: s.players[1].hand[0] }) : { a: "endturn" }); }
+        catch (err) {
+          try { ev = E.apply(s, 1, s.pending ? (s.pending.type === "trap" ? { a: "respond", slot: null } : { a: "discard", uid: s.players[1].hand[0] }) : { a: "endturn" }); }
+          catch (err2) { ev = []; }
+        }
         push(ev);
         tick();
       }, (a0() ? 120 : 650) / ui.speed);
@@ -126,6 +131,11 @@
       leave() { alive = false; clearTimeout(timer); },
       rematch() { this.leave(); startBot(); },
       refresh() { push([]); },
+      admin(op) {            // local practice only: the admin panel never reaches online games
+        if (!alive) return;
+        try { push(E.admin(s, op)); } catch (err) { toast(err.message); }
+        tick();
+      },
       _state: s,
     };
   }
@@ -197,6 +207,7 @@
 
   /* ================= start / leave ================= */
   function resetBoardUi() {
+    ui.awarded = false;
     ui.V = null; ui.select = null; ui.shownSeq = -1; ui.awaiting = false; ui.pendingViews = 0; ui.discardPick = null;
     ui.shownLp = [4000, 4000];
     $("duel-over").hidden = true;
@@ -392,7 +403,14 @@
       if (kind === "mz" && item.pos === "def") wrap.classList.add("def");
       wrap.appendChild(cardEl(item.id ? item : null));
       if (kind === "mz" && item.attacked) wrap.classList.add("spent");
-      if (kind === "sz" && item.id) {
+      if (kind === "sz" && item.id && item.faceUp) {
+        wrap.classList.add("face-up-st");
+        const d = BY[item.id];
+        const t = document.createElement("span");
+        t.className = "set-tag eq-tag" + (d.sub === "curse" ? " curse" : "");
+        t.textContent = d.sub === "curse" ? "CURSE" : "EQUIP";
+        wrap.appendChild(t);
+      } else if (kind === "sz" && item.id) {
         wrap.classList.add("set-mine");
         const t = document.createElement("span");
         t.className = "set-tag";
@@ -409,6 +427,18 @@
         st.className = "stat " + (isDef ? "is-def" : "is-atk") + (val > base ? " up" : val < base ? " down" : "");
         st.innerHTML = '<span class="lbl">' + (isDef ? "DEF" : "ATK") + '</span><b>' + val + "</b>";
         z.appendChild(st);
+        if (item.eq && item.eq.length) {
+          const box = document.createElement("div");
+          box.className = "eq-badges";
+          item.eq.forEach((q) => {
+            const b = document.createElement("span");
+            const d2 = BY[q.id];
+            b.className = "eq-badge" + (d2.sub === "curse" ? " curse" : "");
+            b.textContent = d2.name;
+            box.appendChild(b);
+          });
+          z.appendChild(box);
+        }
         if (item.id === "dot_dummy" && ui.V) {
           const used = !!ui.V.players[p].dummyUsed;
           const t = document.createElement("span");
@@ -453,6 +483,8 @@
     if (ui.select) return ui.select.prompt;
     if (V.pending) {
       if (V.pending.waiting) return V.pending.type === "trap" ? "They're deciding whether to spring a trap…" : "Waiting for them…";
+      if (V.pending.type === "trap" && V.pending.on === "spell") return "They cast a spell. Counter it or let it resolve.";
+      if (V.pending.type === "trap" && V.pending.on === "summon") return "They summoned a monster. Spring a trap or let it be.";
       return "You're being attacked. Spring a trap or let it through.";
     }
     if (V.active !== me) return "Their turn. Watch the log for what they do.";
@@ -482,6 +514,7 @@
     const isTarget = (p, slot, kind) => sel && sel.targets.some((t) => t.p === p && t.slot === slot && (t.kind || "mz") === kind);
 
     $("opp-name").textContent = O.name;
+    renderField(V);
     $("phases").querySelectorAll("span").forEach((s) => s.classList.toggle("on", s.dataset.ph === V.phase));
     $("duel-mid").classList.toggle("their-turn", !myTurn);
     $("duel-mid").classList.toggle("my-turn", myTurn);
@@ -566,6 +599,30 @@
     }
   }
 
+  function renderField(V) {
+    const chip = $("field-chip");
+    const board = $("board");
+    const id = V.field ? V.field.id : "";
+    if (board.dataset.field !== id) {
+      board.dataset.field = id;
+      ["graph_paper", "ink_sea", "doodle_park"].forEach((f) => board.classList.toggle("field-" + f, f === id));
+    }
+    if (!chip) return;
+    if (!V.field) { chip.hidden = true; chip.dataset.id = ""; return; }
+    chip.hidden = false;
+    if (chip.dataset.id === id + V.field.owner) return;
+    chip.dataset.id = id + V.field.owner;
+    const d = BY[id];
+    chip.innerHTML = "";
+    const l = document.createElement("span"); l.className = "fc-l"; l.textContent = "FIELD";
+    const n = document.createElement("b"); n.textContent = d.name;
+    chip.appendChild(l); chip.appendChild(n);
+    chip.title = d.effect + " (played by " + (V.field.owner === V.me ? "you" : V.players[V.field.owner].name) + ")";
+    chip.onmouseenter = () => showDetail({ id }, null);
+    chip.onmouseleave = restoreDetail;
+    chip.onclick = (ev) => { ev.stopPropagation(); ui.anchorKey = null; if (isWide()) { ui.pinned = { c: { id }, item: null, info: "FIELD: affects both players.", btns: null, key: null }; restoreDetail(); } else openSheet({ id }, "FIELD: affects both players.", [{ label: "BACK", fn: closeSheet }]); };
+  }
+
   function renderHint(V) {
     const el = $("duel-hint");
     el.innerHTML = "";
@@ -597,7 +654,12 @@
     V.log.forEach((t, i) => {
       const li = document.createElement("li");
       li.textContent = t;
-      if (i === V.log.length - 1) li.className = "newest";
+      const k = /SPRING|TRAP|NOPE|SCRATCH|SPIKE|MIRROR|WHOOPS|PITFALL|STICKY|SMUDGE/.test(t) ? "lg-trap"
+        : /attacks|hits directly|destroy|DESTROY/.test(t) ? "lg-fight"
+        : /gains? \d+ LP|REFILL|CRAYON/.test(t) ? "lg-heal"
+        : /casts?|attach|field|FIELD/.test(t) ? "lg-cast"
+        : /turn|draw/.test(t) ? "lg-turn" : "";
+      li.className = k + (i === V.log.length - 1 ? " newest" : "");
       list.appendChild(li);
     });
     list.scrollTop = list.scrollHeight;
@@ -639,12 +701,25 @@
       const pd = V.pending;
       if (pd.type === "trap") {
         const O = V.players[1 - V.me], P = V.players[V.me];
-        const att = O.mz[pd.attacker];
-        const tgt = pd.target == null ? null : P.mz[pd.target];
-        $("banner-text").textContent = (att ? BY[att.id].name + " (ATK " + att.atk + ")" : "A monster") + " attacks " +
-          (tgt ? BY[tgt.id].name : "you directly") + ". Spring a trap?";
-        pd.options.forEach((slot) => btn("SPRING " + BY[P.sz[slot].id].name, () => ui.ctl.act({ a: "respond", slot })));
-        btn("LET IT THROUGH", () => ui.ctl.act({ a: "respond", slot: null }));
+        if (pd.on === "spell") {
+          const sp = pd.spell ? BY[pd.spell.id] : null;
+          const t = pd.spell && pd.spell.target ? V.players[pd.spell.target.p].mz[pd.spell.target.slot] : null;
+          $("banner-text").textContent = "They cast " + (sp ? sp.name : "a spell") + (t ? " on " + BY[t.id].name : "") + ". Counter it?";
+          pd.options.forEach((slot) => btn("COUNTER: " + BY[P.sz[slot].id].name, () => ui.ctl.act({ a: "respond", slot })));
+          btn("LET IT RESOLVE", () => ui.ctl.act({ a: "respond", slot: null }));
+        } else if (pd.on === "summon") {
+          const m = pd.summoned ? V.players[pd.summoned.p].mz[pd.summoned.slot] : null;
+          $("banner-text").textContent = "They summoned " + (m ? BY[m.id].name + " (ATK " + m.atk + ")" : "a monster") + ". Spring a trap?";
+          pd.options.forEach((slot) => btn("SPRING " + BY[P.sz[slot].id].name, () => ui.ctl.act({ a: "respond", slot })));
+          btn("LET IT BE", () => ui.ctl.act({ a: "respond", slot: null }));
+        } else {
+          const att = O.mz[pd.attacker];
+          const tgt = pd.target == null ? null : P.mz[pd.target];
+          $("banner-text").textContent = (att ? BY[att.id].name + " (ATK " + att.atk + ")" : "A monster") + " attacks " +
+            (tgt ? BY[tgt.id].name : pd.fly ? "you directly, flying (half damage)" : "you directly") + ". Spring a trap?";
+          pd.options.forEach((slot) => btn("SPRING " + BY[P.sz[slot].id].name, () => ui.ctl.act({ a: "respond", slot })));
+          btn("LET IT THROUGH", () => ui.ctl.act({ a: "respond", slot: null }));
+        }
         b.hidden = false;
         return;
       }
@@ -787,6 +862,11 @@
   }
   function clearArrow() { $("arrow-layer").innerHTML = ""; ui.atkFrom = null; }
 
+  function pulse(el, cls) {
+    if (!el || reduced()) return;
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 1000);
+  }
   function shake(big) {
     if (reduced()) return;
     const b = $("screen-duel");
@@ -796,19 +876,40 @@
     setTimeout(() => b.classList.remove("shake", "shake-big"), 450);
   }
 
-  async function trapFlash(e, prevV) {
+  async function trapFlash(e, prevV, target, label) {
     const d = BY[e.id];
     const isTrap = d.kind === "trap";
     const z = e.zone === "sz" ? zoneNode(e.p, "sz", e.slot) : null;
     if (z) z.classList.add("flashing");
+    const tz = target ? zoneNode(target.p, "mz", target.slot) : null;
+    if (tz) tz.classList.add("trap-target");
     const box = $("trap-flash");
-    $("trap-flash-text").textContent = (isTrap ? "TRAP ACTIVATED: " : "SPELL: ") + d.name;
+    const kindWord = isTrap ? (d.sub === "counter" ? "COUNTER TRAP: " : "TRAP ACTIVATED: ")
+      : d.sub === "field" ? "FIELD SPELL: " : d.sub === "equip" ? "EQUIP: " : d.sub === "curse" ? "CURSE: " : d.sub === "buff" ? "BUFF: " : "SPELL: ";
+    $("trap-flash-text").textContent = label || kindWord + d.name;
+    box.className = "trap-flash sub-" + (isTrap ? "trap" : d.sub);
     box.classList.toggle("is-trap", isTrap);
     box.hidden = false;
     box.classList.remove("go"); void box.offsetWidth; box.classList.add("go");
+    if (tz && z && !reduced()) drawArrow(z, tz);
     if (isTrap) { shake(false); LLCAudio.play("cast"); }
-    await wait(isTrap ? 900 : 650);
+    await wait(isTrap ? 950 : 650);
     box.hidden = true;
+    if (tz) tz.classList.remove("trap-target");
+    if (tz && z) $("arrow-layer").innerHTML = "";
+  }
+  // a dying card cracks and fades on the old board before the new one is drawn
+  async function deathAnim(events) {
+    const dying = events.filter((e) => e.e === "destroy" || e.e === "tribute" || e.e === "bounce" || e.e === "unequip");
+    let any = false;
+    dying.forEach((e) => {
+      if (e.slot == null) return;
+      const kind = e.e === "unequip" || e.zone === "sz" ? "sz" : "mz";
+      const z = zoneNode(e.p, kind, e.slot);
+      const f = z && z.querySelector(".fcard");
+      if (f) { f.classList.add(e.e === "bounce" ? "bouncing" : "dying"); any = true; }
+    });
+    if (any) { LLCAudio.play("hit", 0.5); await wait(420); }
   }
 
   // the fight pop-up: both cards, the numbers, the result; tap to skip
@@ -907,15 +1008,21 @@
       LLCAudio.play("slide", 0.7);
       await drawArrow(fromEl, toEl);
     }
-    for (const e of events) {
-      if (e.e === "activate" && prev) await trapFlash(e, prev);
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      if (e.e === "activate" && prev) {
+        const fx = events.slice(i + 1).find((x) => x.e === "trapfx" && x.id === e.id);
+        await trapFlash(e, prev, e.target || (fx && fx.target) || null);
+      }
+      if (e.e === "countered" && prev) await trapFlash({ id: e.by, p: 1 - e.p, zone: null }, prev, null, "COUNTERED: " + BY[e.id].name + " FIZZLES!");
       if (e.e === "clash") { await showClash(e, V, false); }
       if (e.e === "negated") {
         const at = prev && prev.players[e.p].mz[e.slot];
         await showClash({ p: e.p, aId: at ? at.id : null, A: at ? at.atk : 0, trapId: e.id }, V, true);
       }
     }
-    if (!(V.pending && V.pending.type === "trap")) clearArrow();
+    if (prev) await deathAnim(events);
+    if (!(V.pending && V.pending.type === "trap" && V.pending.on === "attack")) clearArrow();
     if (prev && V.seq !== prev.seq && ui.pinned && ui.pinned.key) ui.pinned = null;
     ui.V = V;
     if (ui.select && (!V.legal || V.active !== V.me)) ui.select = null;
@@ -940,12 +1047,39 @@
       if (e.e === "pos") { const z = zoneNode(e.p, "mz", e.slot); const m = V.players[e.p].mz[e.slot]; if (z && m) floatText(z, m.pos === "def" ? "TO DEFENSE" : "TO ATTACK", "sum-t"); }
       if (e.e === "effect") { const z = zoneNode(e.p, "mz", e.slot); if (z) { z.classList.add("glow"); floatText(z, "POWER UP!", "sum-t"); } }
       if (e.e === "turn") floatText($("duel-mid"), e.p === me ? "YOUR TURN" : "THEIR TURN", "turn");
+      const lpEl = (p) => (p === me ? $("my-lp") : $("opp-lp"));
+      if (e.e === "heal" && e.amount) { floatText(lpEl(e.p), "+" + e.amount, "heal"); pulse(lpEl(e.p), "lp-heal"); }
+      if (e.e === "damage" && e.amount) pulse(lpEl(e.p), "lp-hit");
+      if (e.e === "damage" && e.god) floatText(lpEl(e.p), "GOD MODE", "sum-t");
+      if (e.e === "buff" || e.e === "debuff") {
+        const z = zoneNode(e.p, "mz", e.slot);
+        if (z) { floatText(z, (e.amount > 0 ? "+" : "") + e.amount + " ATK", e.amount > 0 ? "buff" : "debuff"); pulse(z, e.amount > 0 ? "buffed" : "debuffed"); }
+      }
+      if (e.e === "equip") {
+        const z = e.target && zoneNode(e.target.p, "mz", e.target.slot);
+        const sz = zoneNode(e.p, "sz", e.slot);
+        if (z) { floatText(z, e.curse ? "CURSED!" : "EQUIPPED!", e.curse ? "debuff" : "buff"); pulse(z, e.curse ? "debuffed" : "buffed"); }
+        if (sz) pulse(sz, "just-placed");
+        if (z && sz && !reduced()) { drawArrow(sz, z); setTimeout(() => { if (!ui.select) $("arrow-layer").innerHTML = ""; }, 900 / ui.speed); }
+      }
+      if (e.e === "unequip") { const z = zoneNode(e.p, "sz", e.slot); if (z) floatText(z, "GONE", "poof-t"); }
+      if (e.e === "bounce" && e.slot != null) { const z = zoneNode(e.p, "mz", e.slot); if (z) floatText(z, "BACK TO HAND", "sum-t"); }
+      if (e.e === "bounce" && e.slot == null) floatText(e.p === me ? $("my-hand") : $("opp-hand"), BY[e.id].name + " RETURNS", "sum-t");
+      if (e.e === "field") { floatText($("duel-mid"), "FIELD: " + BY[e.id].name, "turn"); pulse($("board"), "field-change"); }
+      if (e.e === "discard" && e.p !== me) floatText($("opp-hand"), "DISCARDED " + BY[e.id].name, "poof-t");
+      if (e.e === "draw" && events.filter((x) => x.e === "draw").length <= 3 && !events.some((x) => x.e === "turn") && e.p === me) {
+        const h = $("my-hand").lastElementChild; if (h) pulse(h, "just-drawn");
+      }
     });
     const delay = events.some((e) => e.e === "destroy" || e.e === "damage") ? 320 : 80;
     await wait(delay);
   }
 
   /* ================= input ================= */
+  function needTributes(card, V) {
+    if (card.id === "doodle_prince" && V && V.players[V.me].mz.some((m) => m && BY[m.id].type === "DOODLE")) return 0;
+    return E.tributesNeeded(card);
+  }
   const busy = () => ui.awaiting || (ui.pendingViews || 0) > 0;
   function discarding(V) { return !!(V && V.pending && !V.pending.waiting && V.pending.player === V.me && V.pending.type === "discard"); }
   function onHand(c) {
@@ -964,7 +1098,7 @@
     const opts = (V.legal.hand[c.uid]) || [];
     const card = BY[c.id];
     const btns = [];
-    const trib = E.tributesNeeded(card);
+    const trib = needTributes(card, V);
     if (opts.includes("summon")) btns.push({ label: (trib ? "TRIBUTE + " : "") + "SUMMON IN ATTACK", fn: () => doSummon(c, "summon") });
     if (opts.includes("set")) btns.push({ label: (trib ? "TRIBUTE + " : "") + "SUMMON IN DEFENSE", fn: () => doSummon(c, "set") });
     if (opts.includes("activate")) btns.push({ label: "CAST", fn: () => doCast({ uid: c.uid }, c.id) });
@@ -992,9 +1126,9 @@
 
   function doSummon(c, mode) {
     closeSheet();
-    const need = E.tributesNeeded(BY[c.id]);
-    if (!need) { ui.ctl.act({ a: mode, uid: c.uid }); return; }
     const V = ui.V;
+    const need = needTributes(BY[c.id], V);
+    if (!need) { ui.ctl.act({ a: mode, uid: c.uid }); return; }
     const targets = V.players[V.me].mz.map((m, slot) => (m ? { p: V.me, slot } : null)).filter(Boolean);
     ui.select = { purpose: "tribute", uid: c.uid, mode, need, picked: [], targets, prompt: "Pick " + need + " of your monsters to tribute." };
     render();
@@ -1002,9 +1136,13 @@
 
   function doCast(src, id) {
     closeSheet();
-    if (id === "erase") {
-      const V = ui.V;
-      ui.select = { purpose: "erase", src, targets: V.eraseTargets.map((t) => ({ p: t.p, slot: t.slot })), prompt: "ERASE: pick a monster with 1000 ATK or less." };
+    const V = ui.V;
+    const key = src.uid != null ? "h" + src.uid : "s" + src.slot;
+    const tg = V.spellTargets && V.spellTargets[key];
+    if (tg) {
+      const d = BY[id];
+      const who = d.fx.tgt === "my_mon" ? "one of YOUR monsters" : d.fx.tgt === "any_mon" ? "a monster" : d.fx.tgt === "opp_def" ? "one of THEIR defense monsters" : "one of THEIR monsters";
+      ui.select = { purpose: "cast", src, targets: tg.map((t) => ({ p: t.p, slot: t.slot })), prompt: d.name + ": pick " + who + "." };
       render();
       return;
     }
@@ -1051,7 +1189,7 @@
         return;
       }
       ui.select = null;
-      if (sel.purpose === "erase") ui.ctl.act(Object.assign({ a: "activate", target: { p, slot } }, sel.src));
+      if (sel.purpose === "cast" || sel.purpose === "erase") ui.ctl.act(Object.assign({ a: "activate", target: { p, slot } }, sel.src));
       else if (sel.purpose === "attack") ui.ctl.act({ a: "attack", slot: sel.slot, target: slot });
       return;
     }
@@ -1068,13 +1206,16 @@
       const opts = (kind === "mz" ? V.legal.mz : V.legal.sz)[slot] || [];
       if (kind === "mz") {
         if (opts.includes("attack")) {
-          btns.push({ label: V.legal.attackDirect ? "ATTACK DIRECTLY" : "ATTACK", fn: () => {
+          const tgts = (V.legal.atkTargets && V.legal.atkTargets[slot]) || [];
+          if (V.legal.attackDirect || tgts.length) btns.push({ label: V.legal.attackDirect ? "ATTACK DIRECTLY" : "ATTACK", fn: () => {
             closeSheet();
             if (V.legal.attackDirect) { ui.ctl.act({ a: "attack", slot, target: null }); return; }
             const O = V.players[1 - V.me];
-            ui.select = { purpose: "attack", slot, targets: O.mz.map((m, s) => (m ? { p: 1 - V.me, slot: s } : null)).filter(Boolean), prompt: "Pick one of their monsters to attack." };
+            const taunt = tgts.length < O.mz.filter(Boolean).length;
+            ui.select = { purpose: "attack", slot, targets: tgts.map((s) => ({ p: 1 - V.me, slot: s })), prompt: taunt ? "TAPE MUMMY taunts: you must attack it." : "Pick one of their monsters to attack." };
             render();
           } });
+          if (V.legal.fly && V.legal.fly[slot]) btns.push({ label: "FLY OVER (DIRECT, HALF DAMAGE)", fn: () => { closeSheet(); ui.ctl.act({ a: "attack", slot, target: null }); } });
         }
         if (opts.includes("pos")) btns.push({ label: item.pos === "atk" ? "SWITCH TO DEFENSE" : "SWITCH TO ATTACK", fn: () => { closeSheet(); ui.ctl.act({ a: "pos", slot }); } });
         if (opts.includes("effect")) btns.push({ label: "POWER UP", fn: () => { closeSheet(); ui.ctl.act({ a: "effect", slot }); } });
@@ -1083,9 +1224,18 @@
         if (!opts.length && item.attacked) info = "Already attacked this turn.";
       } else {
         if (opts.includes("activate")) btns.push({ label: "CAST", fn: () => doCast({ slot }, item.id) });
-        if (BY[item.id].kind === "trap") info = item.setTurn < V.turn ? "Set face-down. Ready: it fires when they attack." : "Set face-down. Ready from their next turn.";
+        const d = BY[item.id];
+        const when = d.fx.on === "summon" ? "when they summon" : d.fx.on === "spell" ? "when they cast a spell" : "when they attack";
+        if (item.faceUp) {
+          const t = item.attach && V.players[item.attach.p].mz[item.attach.slot];
+          info = (d.sub === "curse" ? "CURSE on " : "EQUIPPED to ") + (t ? BY[t.id].name : "a monster") + ". It goes to the graveyard if that monster leaves.";
+        } else if (d.kind === "trap") info = item.setTurn < V.turn ? "Set face-down. Ready: it fires " + when + "." : "Set face-down. Ready from their next turn (" + when + ").";
         else info = "Set face-down.";
       }
+    } else if (kind === "sz" && item.faceUp) {
+      const d = BY[item.id];
+      const t = item.attach && V.players[item.attach.p].mz[item.attach.slot];
+      info = (d.sub === "curse" ? "CURSE on " : "EQUIPPED to ") + (t ? BY[t.id].name : "a monster") + ".";
     } else if (kind === "sz") info = "Could be a spell or a trap.";
     btns.push({ label: "CLOSE", fn: closeSheet });
     openSheet(item, info, btns, item);
@@ -1155,7 +1305,14 @@
   function showOver(win, reason) {
     LLCAudio.play(win ? "win" : "lose");
     $("over-title").textContent = win ? "YOU WIN!" : "YOU LOSE";
-    $("over-sub").textContent = reason || "";
+    let reward = 0;
+    if (!ui.awarded && ui.ctl) {
+      ui.awarded = true;
+      reward = win ? (ui.ctl.mode === "online" ? 150 : 100) : 25;
+      if (ui.ctl.mode === "online" && reason === "Your rival left the match.") reward = 150;
+      LLCStorage.addInk(reward);
+    }
+    $("over-sub").textContent = (reason || "") + (reward ? "\n+" + reward + " INK  (you have " + LLCStorage.ink() + ")" : "");
     $("duel-over").hidden = false;
     closeSheet();
     closeGrave();
@@ -1198,5 +1355,6 @@
     setAuto(on, speed) { ui.autoplay = !!on; ui.speed = speed || 1; if (on) autoTick(); },
     openGrave,
     startBot,
+    render: () => render(),
   };
 })();

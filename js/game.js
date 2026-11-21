@@ -1,7 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "9"; window.LLC_ASSET_V = ASSET_V;
+  const ASSET_V = "10"; window.LLC_ASSET_V = ASSET_V;
   const reduced = () =>
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -113,39 +113,87 @@
   $("map-src").addEventListener("load", drawMap);
 
   /* ---------- binder ---------- */
+  let binderFilter = "all";
   function renderBinder() {
     const page = $("binder-page");
     page.innerHTML = "";
     const data = LLCStorage.load().edition_one;
-    let owned = 0;
-    LLCData.CARDS.forEach((card) => {
+    let owned = 0, shown = 0;
+    const byR = {};
+    LLCData.CARDS.forEach((card, i) => {
       const rec = data[card.id];
+      const has = rec && rec.owned;
+      if (has) { owned++; byR[card.rarity] = (byR[card.rarity] || 0) + 1; }
+      const f = binderFilter;
+      if (f !== "all" && card.rarity !== f && card.kind !== f) return;
+      shown++;
       const slot = document.createElement("div");
-      slot.className = "binder-slot" + (rec && rec.owned ? "" : " empty");
-      if (rec && rec.owned) {
-        owned++;
+      slot.className = "binder-slot r-" + card.rarity + (has ? "" : " empty");
+      if (has) {
         const el = LLCFoil.createCard(card, { foil: !!rec.foil, face: "front" });
         el.classList.add("sm");
         slot.appendChild(el);
+        if ((rec.n || 1) > 1) { const n = document.createElement("span"); n.className = "copies"; n.textContent = "x" + rec.n; slot.appendChild(n); }
       } else {
         const q = document.createElement("div");
         q.className = "q";
-        q.textContent = "?";
+        q.innerHTML = '<span class="qn">#' + String(i + 1).padStart(2, "0") + '</span><span class="qq">?</span><span class="qr">' + LLCData.RARITY_NAME[card.rarity] + "</span>";
         slot.appendChild(q);
       }
       page.appendChild(slot);
     });
-    $("binder-count").textContent = owned + " / " + LLCData.CARDS.length;
+    const tot = (r) => LLCData.CARDS.filter((c) => c.rarity === r).length;
+    $("binder-count").textContent = owned + " / " + LLCData.CARDS.length + "   ·   " +
+      LLCData.RARITY_ORDER.map((r) => r + " " + (byR[r] || 0) + "/" + tot(r)).join("   ");
+  }
+  $("binder-filter").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    binderFilter = b.dataset.f;
+    $("binder-filter").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    renderBinder();
+  });
+
+  /* ---------- shop ---------- */
+  function pct(x) { const v = x * 100; return (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + "%"; }
+  function renderShop() {
+    $("ink-count").textContent = LLCStorage.ink();
+    const cost = LLCData.PACKS.super_rare.cost;
+    $("sr-cost").textContent = cost;
+    $("pack-sr").classList.toggle("broke", LLCStorage.ink() < cost);
+    ["edition_one", "super_rare"].forEach((id) => {
+      const t = $("rates-" + id);
+      const rows = LLCData.rateTable(id);
+      t.innerHTML = "<caption>DROP RATES</caption><tr><th></th><th>PER CARD</th><th>PER PACK</th></tr>" + rows.map((r) => {
+        const per = r.perCard.length > 1 && r.perCard.some((x) => x !== r.perCard[0])
+          ? r.perCard.map(pct).join(" / ") : pct(r.perCard[0]);
+        return '<tr class="r-' + r.rarity + '"><td>' + r.name + " <small>(" + r.count + ")</small></td><td>" + per + "</td><td>" + pct(r.perPack) + "</td></tr>";
+      }).join("") + '<tr class="foot"><td colspan="3">' + (id === "edition_one" ? "Foil: 1 in 10 non-full-art cards." : "Last card is always Super Rare or better.") + "</td></tr>";
+    });
+  }
+  document.addEventListener("llc:screen", (e) => { if (e.detail.name === "shop") renderShop(); });
+  document.addEventListener("llc:ink", () => { if (currentScreen === "shop") renderShop(); });
+  function buySr() {
+    const cost = LLCData.PACKS.super_rare.cost;
+    if (!LLCStorage.spendInk(cost)) {
+      $("pack-sr").classList.remove("nope"); void $("pack-sr").offsetWidth; $("pack-sr").classList.add("nope");
+      LLCAudio.play("nope");
+      $("ink-count").parentElement.classList.add("short");
+      setTimeout(() => $("ink-count").parentElement.classList.remove("short"), 900);
+      return;
+    }
+    startOpening("super_rare");
   }
 
   function confirmReset() {
-    if (!confirm("Reset your Edition One collection?")) return;
+    if (!confirm("Reset your collection and ink?")) return;
     LLCStorage.reset();
     if (screens.binder.classList.contains("active")) renderBinder();
   }
 
   /* ---------- pack opening: one pile, seen cards slide to the side ---------- */
   function hideBadges() {
+    const rp = $("rarity-pop"); if (rp) rp.className = "rarity-pop";
     const neu = $("new-pop");
     const foil = $("foil-tag");
     neu.hidden = true;
@@ -168,6 +216,7 @@
     $("scraps").innerHTML = "";
     $("fly-target").classList.remove("visible");
     $("opening-caption").textContent = "";
+    $("screen-opening").classList.remove("sr-mode", "burst-SR", "burst-SCR", "burst-R");
     const ripTop = $("pack-rip").querySelector(".rip-top");
     const ripBot = $("pack-rip").querySelector(".rip-bottom");
     if (ripTop) { ripTop.style.animation = ""; ripTop.style.transform = ""; }
@@ -217,20 +266,25 @@
     }
   }
 
-  async function startOpening() {
+  async function startOpening(packId) {
     clearOpening();
-    const raw = LLCData.pullPack();
+    packId = packId || "edition_one";
+    const raw = LLCData.pullPack(null, packId);
     const pulls = LLCStorage.addPulls(raw);
-    opening = { pulls, index: 0, phase: "pack", busy: true, queued: false, flipped: false, stackEls: [], seen: [] };
+    opening = { pulls, packId, index: 0, phase: "pack", busy: true, queued: false, flipped: false, stackEls: [], seen: [] };
     await show("opening");
+    const sr = packId === "super_rare";
+    $("screen-opening").classList.toggle("sr-mode", sr);
+    $("pack-live-img").src = "assets/" + (sr ? "pack_super_rare" : "pack_edition_one") + ".png?v=" + ASSET_V;
+    $("pack-rip").classList.toggle("sr", sr);
     const pack = $("pack-live");
     pack.hidden = false;
-    $("opening-caption").textContent = "";
+    $("opening-caption").textContent = sr ? "SUPER RARE PACK" : "";
     if (!reduced()) {
-      pack.classList.add("shaking");
+      pack.classList.add(sr ? "charging" : "shaking");
       LLCAudio.play("shake");
-      await wait(720);
-      pack.classList.remove("shaking");
+      if (sr) { await wait(700); LLCAudio.play("foil"); await wait(700); } else await wait(720);
+      pack.classList.remove("shaking", "charging");
     }
     await ripAndDeal();
   }
@@ -287,6 +341,16 @@
     el.classList.add("just-flipped");
     setTimeout(() => el.classList.remove("just-flipped"), 520);
     $("opening-caption").textContent = (i + 1) + " / " + opening.pulls.length + "  ·  " + p.card.name;
+    const rp = $("rarity-pop");
+    rp.className = "rarity-pop";
+    if (p.card.rarity !== "C") {
+      rp.textContent = LLCData.RARITY_NAME[p.card.rarity] + (p.card.rarity === "SCR" ? "!!" : "!");
+      void rp.offsetWidth;
+      rp.className = "rarity-pop show r-" + p.card.rarity;
+      $("screen-opening").classList.remove("burst-SR", "burst-SCR", "burst-R"); void $("screen-opening").offsetWidth;
+      $("screen-opening").classList.add("burst-" + p.card.rarity);
+      if (p.card.rarity === "SR" || p.card.rarity === "SCR") { LLCAudio.play("foil"); el.classList.add("sweeping"); }
+    }
     await wait(reduced() ? 40 : 300);
     if (p.foil) {
       $("foil-tag").hidden = false;
@@ -430,8 +494,8 @@
   $("btn-reset").addEventListener("click", confirmReset);
   $("btn-reset-binder").addEventListener("click", confirmReset);
 
-  $("pack-e1").addEventListener("click", () => startOpening());
-  $("pack-locked-a").addEventListener("click", () => alert("Coming soon."));
+  $("pack-e1").addEventListener("click", () => startOpening("edition_one"));
+  $("pack-sr").addEventListener("click", buySr);
   $("pack-locked-b").addEventListener("click", () => alert("Coming soon."));
 
   $("opening-stage").addEventListener("click", () => tapOpening());
@@ -549,7 +613,7 @@
   }
 
   window.LLC = {
-    show, startOpening, renderBinder, confirmReset, stageShot, tapOpening,
+    show, startOpening, renderBinder, renderShop, confirmReset, stageShot, tapOpening,
     get screen() { return currentScreen; },
     get opening() { return opening; },
   };

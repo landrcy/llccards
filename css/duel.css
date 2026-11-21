@@ -517,7 +517,9 @@ button.big { font-size: 24px; padding: 12px 16px; }
 @media (min-width: 980px) and (min-aspect-ratio: 5/4) {
   #screen-duel { gap: 12px; padding: 10px 12px; justify-content: space-between; }
   .detail-panel, .log-panel { display: flex; }
-  .board { --S: min(calc((100vw - 2 * var(--side) - 60px) / 3.95), calc((100dvh - 150px) / 6.95), 160px); flex: 1 1 auto; }
+  #screen-duel { --side: clamp(240px, 19vw, 560px); }
+  .board { --S: min(calc((100vw - 2 * var(--side) - 60px) / 3.95), calc((100dvh - 128px) / 6.75), 300px); flex: 1 1 auto; }
+  .opp-top { height: calc(var(--S) * 0.48); }
   .grave-view { left: calc(var(--side) + 18px); }
   .mid .duel-log { display: none; }
   .hand-row.my-hand { width: min(100%, calc(var(--S) * 6.2)); }
@@ -580,3 +582,72 @@ button.big { font-size: 24px; padding: 12px 16px; }
 .hcard.sel-lock .llc-card { outline: 4px solid #000; outline-offset: 3px; }
 .shield-tag { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); background: #fff; border: 2px solid #000; font-size: 11px; padding: 1px 5px 0; z-index: 7; line-height: 1.2; white-space: nowrap; pointer-events: none; }
 .shield-tag.used { background: #000; color: #fff; text-decoration: line-through; }
+
+/* ================= v10: field, equips, new animations ================= */
+.field-chip { display: inline-flex; gap: 6px; align-items: baseline; margin-top: 2px; font-size: 14px; padding: 2px 10px; min-height: 0; background: #fff; border-radius: 10px 14px 9px 13px; cursor: pointer; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field-chip[hidden] { display: none; }
+.field-chip .fc-l { font-size: 11px; opacity: 0.6; letter-spacing: 1px; }
+.field-chip b { font-weight: normal; }
+.mid-center { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+/* field spells repaint the board paper with their own hatch */
+.board::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.5s ease; }
+.board.field-graph_paper::before { opacity: 1; background-image: linear-gradient(rgba(0,0,0,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.07) 1px, transparent 1px); background-size: 18px 18px; }
+.board.field-ink_sea::before { opacity: 1; background-image: repeating-radial-gradient(circle at 50% 120%, transparent 0 14px, rgba(0,0,0,0.06) 14px 16px); }
+.board.field-doodle_park::before { opacity: 1; background-image: radial-gradient(rgba(0,0,0,0.09) 1.5px, transparent 1.8px); background-size: 14px 14px; }
+.board.field-change { animation: field-flash 0.9s ease-out; }
+@keyframes field-flash { 0% { filter: invert(0); } 15% { filter: invert(1); } 30% { filter: invert(0); } }
+
+.fcard.face-up-st .llc-card { filter: none; }
+.set-tag.eq-tag { background: #fff; color: #000; border: 2px solid #000; }
+.set-tag.eq-tag.curse { background: #000; color: #fff; }
+.eq-badges { position: absolute; left: 50%; top: calc(var(--S) * 0.04); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; z-index: 4; pointer-events: none; max-width: calc(var(--S) * 1.1); }
+.eq-badge { font-size: clamp(8px, calc(var(--S) * 0.075), 13px); line-height: 1.15; background: #fff; border: 1.5px solid #000; padding: 0 3px; border-radius: 5px; white-space: nowrap; }
+.eq-badge.curse { background: #000; color: #fff; }
+
+.zone.trap-target .fcard { outline: 4px dashed #000; outline-offset: 2px; animation: target-blink 0.25s steps(2, end) 4; }
+@keyframes target-blink { 50% { outline-color: transparent; } }
+.fcard.dying { animation: die 0.42s ease-in forwards; }
+@keyframes die {
+  0% { transform: none; filter: none; opacity: 1; }
+  30% { transform: rotate(-4deg) scale(1.04); filter: invert(1); }
+  60% { transform: rotate(3deg) scale(0.9); filter: invert(0) blur(0.5px); opacity: 0.8; }
+  100% { transform: rotate(10deg) scale(0.4) translateY(20%); opacity: 0; filter: blur(2px); }
+}
+.fcard.bouncing { animation: bounce-out 0.42s ease-in forwards; }
+@keyframes bounce-out { 40% { transform: translateY(-14%) scale(1.05); } 100% { transform: translateY(60%) scale(0.5); opacity: 0; } }
+.zone.buffed .fcard { animation: buffed 0.8s ease-out; }
+@keyframes buffed { 0% { filter: none; } 20% { filter: drop-shadow(0 0 6px #000) brightness(1.1); transform: scale(1.06); } 100% { filter: none; transform: none; } }
+.zone.debuffed .fcard { animation: debuffed 0.8s ease-out; }
+@keyframes debuffed { 0%, 100% { transform: none; } 15% { transform: translateX(-4px); filter: invert(1); } 30% { transform: translateX(4px); filter: invert(0); } 45% { transform: translateX(-2px); } }
+.lp.lp-heal, .num.lp-heal { animation: lp-heal 0.8s ease-out; }
+@keyframes lp-heal { 30% { transform: scale(1.25); text-shadow: 0 0 6px #000; } }
+.num.lp-hit { animation: lp-hit 0.5s steps(4, end); }
+@keyframes lp-hit { 25% { transform: translateX(-3px); } 50% { transform: translateX(3px); color: #fff; background: #000; } 75% { transform: translateX(-2px); } }
+.hcard.just-drawn { animation: just-drawn 0.6s cubic-bezier(0.22, 1.3, 0.32, 1); }
+@keyframes just-drawn { 0% { transform: translateY(40%) scale(0.8); opacity: 0; } 100% { opacity: 1; } }
+.floater.heal { font-size: 30px; }
+.floater.heal::before { content: ""; }
+.floater.buff { font-size: 22px; background: #fff; border: 2px solid #000; padding: 0 6px; border-radius: 8px; }
+.floater.debuff { font-size: 22px; background: #000; color: #fff; padding: 0 6px; border-radius: 8px; }
+.trap-flash.sub-field span, .trap-flash.sub-equip span, .trap-flash.sub-buff span { background: #fff; color: #000; }
+.trap-flash.sub-curse span { background: #000; color: #fff; }
+.log-list li.lg-trap { border-left: 5px solid #000; padding-left: 6px; }
+.log-list li.lg-fight { font-weight: bold; }
+.log-list li.lg-heal::before { content: "+ "; }
+.log-list li.lg-cast { font-style: italic; }
+.log-list li.lg-turn { opacity: 0.7; font-size: 13px; }
+.log-list li.newest { opacity: 1; }
+.zone.full:hover .fcard { transform: translateY(-2px); transition: transform 0.12s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .fcard.dying, .fcard.bouncing, .zone.buffed .fcard, .zone.debuffed .fcard, .board.field-change, .hcard.just-drawn { animation: none; }
+}
+
+@media (min-width: 1800px) and (min-aspect-ratio: 5/4) {
+  .dp-card { width: min(100%, calc((100dvh - 330px) * 0.763), 480px); }
+  .log-list li { font-size: clamp(15px, 0.8vw, 22px); }
+  .dp-type, .dp-now { font-size: clamp(15px, 0.75vw, 20px); }
+  .dp-effect { font-size: clamp(17px, 0.95vw, 24px); }
+  .dp-btns button, .act-pop button { font-size: clamp(18px, 0.9vw, 24px); }
+  .log-panel h3 { font-size: clamp(22px, 1.1vw, 30px); }
+  .hint { font-size: clamp(15px, 0.8vw, 22px); }
+}

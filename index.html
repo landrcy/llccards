@@ -10,13 +10,13 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=9">
-  <link rel="stylesheet" href="css/duel.css?v=9">
+  <link rel="stylesheet" href="css/game.css?v=10">
+  <link rel="stylesheet" href="css/duel.css?v=10">
 </head>
 <body>
   
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png?v=9" alt="LLC Cards">
+    <img class="logo" src="assets/logo.png?v=10" alt="LLC Cards">
     <p class="tap-hint">click / tap to start</p>
   </section>
 
@@ -27,7 +27,7 @@
       <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map-src" id="map-src" src="assets/map.png?v=9" alt="" aria-hidden="true">
+      <img class="map-src" id="map-src" src="assets/map.png?v=10" alt="" aria-hidden="true">
       <canvas class="map-canvas" id="map-canvas" role="img" aria-label="Hand-drawn map with a shop, a trampoline battle arena and a PLAY NOW sign"></canvas>
       <div class="map-stage" id="map-stage">
         <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
@@ -35,7 +35,7 @@
         <button type="button" class="hotspot" id="hot-play" aria-label="Play now"></button>
       </div>
     </div>
-    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=9" alt="credits" width="123" height="48"></button>
+    <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=10" alt="credits" width="123" height="48"></button>
   </section>
   <section id="screen-shop" class="screen" aria-label="The shop">
     <div class="topbar">
@@ -43,17 +43,24 @@
       <h1>THE SHOP</h1>
       <div class="tb-r"><button type="button" id="btn-shop-binder">Binder</button></div>
     </div>
+    <p class="ink-line"><span class="ink-drop" aria-hidden="true"></span>INK: <b id="ink-count">0</b><span class="ink-how">win duels to earn more (bot win +100, loss +25, online win +150)</span></p>
     <div class="shelf" id="shelf">
-      <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free for testing.">
-        <img src="assets/pack_edition_one.png?v=9" alt="">
-        <span class="label">LLC CARDS<br>EDITION ONE<br>FREE — tap to open</span>
-      </button>
-      <button type="button" class="pack-slot locked" id="pack-locked-a" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=9" alt="">
-        <span class="label">PACK TWO</span>
-      </button>
+      <div class="pack-col">
+        <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free.">
+          <img src="assets/pack_edition_one.png?v=10" alt="">
+          <span class="label">EDITION ONE<br>5 CARDS · FREE</span>
+        </button>
+        <table class="rates" id="rates-edition_one" aria-label="Edition One drop rates"></table>
+      </div>
+      <div class="pack-col">
+        <button type="button" class="pack-slot openable sr-pack" id="pack-sr" aria-label="Open a Super Rare pack for 300 ink">
+          <img src="assets/pack_super_rare.png?v=10" alt="">
+          <span class="label">SUPER RARE PACK<br>3 CARDS · <span id="sr-cost">300</span> INK</span>
+        </button>
+        <table class="rates" id="rates-super_rare" aria-label="Super Rare pack drop rates"></table>
+      </div>
       <button type="button" class="pack-slot locked" id="pack-locked-b" aria-label="Coming soon">
-        <img src="assets/pack_locked.png?v=9" alt="">
+        <img src="assets/pack_locked.png?v=10" alt="">
         <span class="label">PACK THREE</span>
       </button>
     </div>
@@ -65,21 +72,23 @@
   <section id="screen-opening" class="screen" aria-label="Pack opening">
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
-        <img id="pack-live-img" src="assets/pack_edition_one.png?v=9" alt="Edition One pack">
+        <img id="pack-live-img" src="assets/pack_edition_one.png?v=10" alt="Edition One pack">
         <div class="pack-rip" id="pack-rip" hidden>
-          <img class="rip-top" src="assets/pack_rip_top.png?v=9" alt="">
-          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=9" alt="">
+          <img class="rip-top" src="assets/pack_rip_top.png?v=10" alt="">
+          <img class="rip-bottom" src="assets/pack_rip_bottom.png?v=10" alt="">
         </div>
         <div class="scraps" id="scraps" aria-hidden="true"></div>
       </div>
       <div class="badge-row" id="badge-row" hidden>
         <div class="new-pop" id="new-pop" hidden>
-          <img class="burst" src="assets/ui/new_burst.png?v=9" alt="">
+          <img class="burst" src="assets/ui/new_burst.png?v=10" alt="">
           <div class="word">NEW!</div>
         </div>
         <div class="foil-tag" id="foil-tag" hidden>FOIL!</div>
       </div>
       <div class="card-stack" id="card-stack" hidden></div>
+      <div class="rarity-pop" id="rarity-pop" aria-live="polite"></div>
+      <div class="sr-rays" aria-hidden="true"></div>
       <p class="opening-caption" id="opening-caption"></p>
     </div>
     <div class="fly-target" id="fly-target">BINDER</div>
@@ -90,6 +99,9 @@
       <div class="tb-l"><button type="button" id="btn-binder-back">Back</button></div>
       <h1>BINDER</h1>
       <div class="tb-r"><button type="button" class="debug-reset" id="btn-reset-binder">reset</button></div>
+    </div>
+    <div class="binder-filter" id="binder-filter" role="tablist" aria-label="Filter by rarity">
+      <button type="button" data-f="all" class="on">ALL</button><button type="button" data-f="C">COMMON</button><button type="button" data-f="R">RARE</button><button type="button" data-f="SR">SUPER RARE</button><button type="button" data-f="SCR">SECRET</button><button type="button" data-f="monster">MONSTERS</button><button type="button" data-f="spell">SPELLS</button><button type="button" data-f="trap">TRAPS</button>
     </div>
     <div class="binder-book" id="binder-book">
       <div class="binder-page" id="binder-page"></div>
@@ -127,13 +139,16 @@
       <details class="rules">
         <summary>HOW TO PLAY</summary>
         <ul>
-          <li>Both players start with 4000 LP. Hit 0 and you lose. Run out of cards to draw and you lose.</li>
+          <li>Both players start with 4000 LP. Hit 0 and you lose. No cards left to draw? You lose 500 LP each time instead.</li>
           <li>Each turn: DRAW, MAIN, BATTLE, END. The first player skips the first draw and cannot attack turn 1.</li>
-          <li>MAIN: play 1 monster per turn, face-up in ATTACK or DEFENSE mode (no face-down monsters). 5-star monsters need 1 tribute. Cast spells, or set spells and traps face-down.</li>
+          <li>MAIN: play 1 monster per turn, face-up in ATTACK or DEFENSE mode (no face-down monsters). 5-6 star monsters need 1 tribute, 7+ stars need 2. Cast spells, or set spells and traps face-down.</li>
+          <li>EQUIPS and CURSES stay face-up in your spell/trap row, stuck to a monster. If that monster leaves, they go too.</li>
+          <li>FIELD spells sit in the middle and change stats for BOTH players. A new field replaces the old one.</li>
+          <li>COMBO cards need the right monsters on your side. COUNTER traps cancel a spell as it is cast.</li>
           <li>Monsters cannot attack the turn they are played (STICK RUNNER can). Change a monster's position once per turn.</li>
           <li>BATTLE: ATK vs ATK, the weaker one is destroyed and its owner takes the difference. ATK vs DEF, the defender is destroyed if ATK is higher; if DEF is higher, the attacker's owner takes the difference.</li>
           <li>No monsters on the other side? Attack directly.</li>
-          <li>Set traps fire on the opponent's turn when they attack. Only 1 trap per turn; WHOOPS! costs 300 LP and only stops monsters with 1500+ ATK. Max 2 copies of each trap in a deck.</li>
+          <li>Set traps fire on the opponent's turn: when they attack, summon or cast. Only 1 trap per player per turn. A deck holds max 3 of a card, 2 of a trap or Super Rare, 1 of a Secret Rare.</li>
           <li>Too many cards at the end of your turn? Your hand turns red: tap a card, then tap it again to discard it.</li>
         </ul>
       </details>
@@ -168,6 +183,7 @@
               <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
             </div>
             <p class="duel-log" id="duel-log"></p>
+            <button type="button" class="field-chip" id="field-chip" hidden></button>
           </div>
           <div class="lp my-lp"><span class="who">YOU</span><span class="num" id="my-lp">4000</span></div>
         </div>
@@ -237,6 +253,26 @@
 
   <button type="button" class="mute-btn" id="btn-mute" aria-label="Sound on"><img src="assets/ui/sound_on.png" alt=""></button>
 
+  <div class="admin" id="admin" hidden role="dialog" aria-label="Admin panel">
+    <div class="admin-box sketch-box">
+      <div class="admin-head"><h2>ADMIN</h2><span class="admin-note">local only · press L to close</span><button type="button" class="small" id="admin-x">X</button></div>
+      <div class="admin-sec">
+        <h3>COLLECTION</h3>
+        <div class="admin-row"><select id="adm-card" aria-label="Card"></select><label><input type="checkbox" id="adm-foil"> foil</label><button type="button" id="adm-give">GIVE CARD</button><button type="button" id="adm-give-all">GIVE ALL</button></div>
+        <div class="admin-row"><input id="adm-ink" type="number" value="1000" step="100" aria-label="Ink amount"><button type="button" id="adm-add-ink">ADD INK</button></div>
+        <div class="admin-row"><button type="button" id="adm-open-e1">OPEN EDITION ONE FREE</button><button type="button" id="adm-open-sr">OPEN SUPER RARE FREE</button></div>
+        <div class="admin-row"><button type="button" class="danger" id="adm-reset">RESET ALL PROGRESS</button></div>
+      </div>
+      <div class="admin-sec" id="adm-duel">
+        <h3>CURRENT BOT DUEL</h3>
+        <p class="admin-off" id="adm-duel-off">Start a VS BOT duel to use these. Disabled in online games.</p>
+        <div class="admin-row"><select id="adm-who" aria-label="Side"><option value="0">YOU</option><option value="1">BOT</option></select><select id="adm-spawn" aria-label="Card to spawn"></select><button type="button" id="adm-spawn-go">SPAWN</button><button type="button" id="adm-hand-go">TO HAND</button></div>
+        <div class="admin-row"><button type="button" id="adm-clear">REMOVE MONSTERS</button><button type="button" id="adm-clear-all">CLEAR FIELD</button><button type="button" id="adm-draw">DRAW 1</button></div>
+        <div class="admin-row"><input id="adm-lp" type="number" value="4000" step="100" aria-label="LP"><button type="button" id="adm-lp-go">SET LP</button><button type="button" id="adm-god">GOD MODE: OFF</button></div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="modal-credits" role="dialog" aria-labelledby="credits-title" aria-modal="true">
     <div class="modal-card credits-card">
       <h2 id="credits-title">CREDITS</h2>
@@ -252,15 +288,16 @@
     </div>
   </div>
 
-  <script src="js/audio.js?v=9"></script>
-  <script src="js/data.js?v=9"></script>
-  <script src="js/storage.js?v=9"></script>
-  <script src="js/foil.js?v=9"></script>
-  <script src="js/engine.js?v=9"></script>
-  <script src="js/ai.js?v=9"></script>
+  <script src="js/audio.js?v=10"></script>
+  <script src="js/data.js?v=10"></script>
+  <script src="js/storage.js?v=10"></script>
+  <script src="js/foil.js?v=10"></script>
+  <script src="js/engine.js?v=10"></script>
+  <script src="js/ai.js?v=10"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
-  <script src="js/net.js?v=9"></script>
-  <script src="js/game.js?v=9"></script>
-  <script src="js/duel.js?v=9"></script>
+  <script src="js/net.js?v=10"></script>
+  <script src="js/game.js?v=10"></script>
+  <script src="js/duel.js?v=10"></script>
+  <script src="js/admin.js?v=10"></script>
 </body>
 </html>

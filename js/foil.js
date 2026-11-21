@@ -1,4 +1,6 @@
-/* Reusable whole-card foil. Tone down ~20% from the mockup. Only color in the game. */
+/* Reusable card holo. Every rarity above Common has its own holo that follows the pointer / idle tilt:
+   R = silver stripes, SR = rainbow + sparkles (full-art colour card), SCR = prismatic "secret" shimmer.
+   Commons only shine when they are a foil pull. */
 (function (global) {
   const reduced = () =>
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -77,13 +79,14 @@
 
   function createCard(card, opts) {
     opts = opts || {};
-    const foil = !!opts.foil;
+    const rar = card.rarity || "C";
+    const foil = !!opts.foil || rar !== "C";
     const face = opts.face || "front";
     const el = document.createElement("div");
-    el.className = "llc-card" + (foil ? " is-foil" : "") + (face === "back" ? " is-back" : "");
+    el.className = "llc-card rar-" + rar + (foil ? " is-foil" : "") + (opts.foil ? " foil-pull" : "") + (face === "back" ? " is-back" : "");
     el.dataset.id = card.id;
     const alt = card.name || card.id;
-    const v = (window.LLC_ASSET_V || "9");
+    const v = (window.LLC_ASSET_V || "10");
     const mask = 'url("assets/masks/' + card.id + '.png?v=' + v + '")';
     el.style.setProperty("--card-mask", mask);
     el.innerHTML =
@@ -93,6 +96,7 @@
           '<div class="foil" aria-hidden="true"></div>' +
           '<div class="glare" aria-hidden="true"></div>' +
           '<div class="foil-sweep" aria-hidden="true"></div>' +
+          (rar === "SR" || rar === "SCR" ? '<div class="sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>' : "") +
         "</div>" +
         '<div class="face back">' +
           '<img src="assets/card_back.png?v=' + v + '" alt="" draggable="false">' +
