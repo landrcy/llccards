@@ -4,6 +4,10 @@
   const $ = (id) => document.getElementById(id);
   const D = window.LLCData;
   const panel = $("admin");
+  // LOCAL ONLY: the panel exists on localhost / 127.0.0.1 / file:// (or with ?admin=1 for a deliberate test on the live site).
+  const h = location.hostname;
+  const LOCAL = location.protocol === "file:" || h === "localhost" || h === "127.0.0.1" || h === "" || /[?&]admin=1\b/.test(location.search);
+  if (!LOCAL) { if (panel) panel.remove(); return; }
   let god = false;
 
   const opt = (c) => '<option value="' + c.id + '">' + c.name + " (" + c.rarity + (c.kind === "monster" ? ", " + c.stars + "★" : ", " + c.kind) + ")</option>";
