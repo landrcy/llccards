@@ -1,7 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "13"; window.LLC_ASSET_V = ASSET_V;
+  const ASSET_V = "14"; window.LLC_ASSET_V = ASSET_V;
   const reduced = () => (window.LLCStorage && LLCStorage.flags().instant) ||
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -249,8 +249,8 @@
     if (!LLCStorage.spendInk(cost)) {
       $("pack-sr").classList.remove("nope"); void $("pack-sr").offsetWidth; $("pack-sr").classList.add("nope");
       LLCAudio.play("nope");
-      $("ink-count").parentElement.classList.add("short");
-      setTimeout(() => $("ink-count").parentElement.classList.remove("short"), 900);
+      $("ink-count").closest(".ink-line").classList.add("short");
+      setTimeout(() => $("ink-count").closest(".ink-line").classList.remove("short"), 900);
       return;
     }
     startOpening("super_rare");

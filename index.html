@@ -10,13 +10,21 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=13">
+  <link rel="stylesheet" href="css/game.css?v=14">
   <link rel="stylesheet" href="css/duel.css?v=13">
 </head>
 <body>
   
   <section id="screen-title" class="screen active" tabindex="0" aria-label="Title screen. Click or tap to start.">
-    <img class="logo" src="assets/logo.png?v=13" alt="LLC Cards">
+    <div class="logo-wrap">
+      <img class="logo" src="assets/logo_base.png?v=14" alt="LLC Cards">
+      <span class="fx twinkle t-sl" aria-hidden="true"></span>
+      <span class="fx twinkle t-sr" aria-hidden="true"></span>
+      <span class="fx twinkle t-pl" aria-hidden="true"></span>
+      <span class="fx twinkle t-pr" aria-hidden="true"></span>
+      <span class="fx speed speed-l" aria-hidden="true"></span>
+      <span class="fx speed speed-r" aria-hidden="true"></span>
+    </div>
     <p class="tap-hint">click / tap to start</p>
   </section>
 
@@ -27,9 +35,22 @@
       <div class="tb-r"><button type="button" id="btn-map-binder">Binder</button></div>
     </div>
     <div class="map-wrap" id="map-wrap">
-      <img class="map-src" id="map-src" src="assets/map.png?v=13" alt="" aria-hidden="true">
+      <img class="map-src" id="map-src" src="assets/map_base.png?v=14" alt="" aria-hidden="true">
       <canvas class="map-canvas" id="map-canvas" role="img" aria-label="Hand-drawn map with a shop, a trampoline battle arena and a PLAY NOW sign"></canvas>
       <div class="map-stage" id="map-stage">
+        <div class="map-fx" aria-hidden="true">
+          <span class="fx-cloud"></span>
+          <span class="fx-sun"><span class="fx-sun-rays"></span></span>
+          <span class="fx-fighter f-l"></span>
+          <span class="fx-fighter f-r"></span>
+          <span class="fx-grass g0"></span>
+          <span class="fx-grass g1"></span>
+          <span class="fx-grass g2"></span>
+          <span class="fx-grass g3"></span>
+          <span class="fx-grass g4"></span>
+          <span class="fx-play"></span>
+          <span class="fx-door"></span>
+        </div>
         <button type="button" class="hotspot" id="hot-shop" aria-label="Shop"></button>
         <button type="button" class="hotspot" id="hot-battle" aria-label="Battle arena"></button>
         <button type="button" class="hotspot" id="hot-play" aria-label="Play now"></button>
@@ -38,12 +59,18 @@
     <button type="button" class="credits-btn art" id="btn-credits" aria-label="Credits"><img src="assets/ui/credits.png?v=13" alt="credits" width="123" height="48"></button>
   </section>
   <section id="screen-shop" class="screen" aria-label="The shop">
-    <div class="topbar">
-      <div class="tb-l"><button type="button" id="btn-shop-back">Map</button></div>
-      <h1>THE SHOP</h1>
-      <div class="tb-r"><button type="button" id="btn-shop-binder">Binder</button></div>
-    </div>
-    <p class="ink-line"><span class="ink-drop" aria-hidden="true"></span>INK: <b id="ink-count">0</b><span class="ink-how">win duels to earn more (bot win +100, loss +25, online win +150)</span></p>
+    <header class="shop-head">
+      <div class="topbar">
+        <div class="tb-l"><button type="button" id="btn-shop-back">Map</button></div>
+        <h1>THE SHOP</h1>
+        <div class="tb-r"><button type="button" id="btn-shop-binder">Binder</button></div>
+      </div>
+      <p class="ink-line">
+        <span class="ink-amt"><span class="ink-drop" aria-hidden="true"></span>INK: <b id="ink-count">0</b></span>
+        <span class="ink-how">win duels to earn more (bot win +100, loss +25, online win +150)</span>
+      </p>
+    </header>
+    <div class="shop-body">
     <div class="shelf" id="shelf">
       <div class="pack-col">
         <button type="button" class="pack-slot openable" id="pack-e1" aria-label="Open LLC Cards Edition One. Free.">
@@ -66,6 +93,7 @@
     </div>
     <div class="shop-actions">
       <button type="button" class="debug-reset" id="btn-reset">reset collection</button>
+    </div>
     </div>
   </section>
 
@@ -363,7 +391,7 @@
   <script src="js/ai.js?v=13"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
   <script src="js/net.js?v=13"></script>
-  <script src="js/game.js?v=13"></script>
+  <script src="js/game.js?v=14"></script>
   <script src="js/duel.js?v=13"></script>
   <script src="js/decks.js?v=13"></script>
   <script src="js/admin.js?v=13"></script>
