@@ -185,4 +185,22 @@
   ];
 
   D.register(CARDS);
+
+  D.TEMPLATES = D.TEMPLATES || [];
+  D.TEMPLATES.push({
+    id: "ed2-starter",
+    name: "MECH LINK STARTER",
+    label: "EDITION TWO: MECH LINK STARTER",
+    set: "edition_two",
+    cards: [
+      "ace_pilot","ace_pilot","ace_pilot",
+      "signal_pilot","signal_pilot",
+      "blade_dancer","blade_dancer",
+      "pulse_knight","tread_frame","hex_guard","wing_frame",
+      "mech_link","mech_link","mech_link",
+      "battle_station","lockdown","charge",
+      "hard_light","hard_light","rail_trap"
+    ],
+    hangar: ["storm_wing", "phantom_blade"]
+  });
 })(typeof window !== "undefined" ? window : globalThis);

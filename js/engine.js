@@ -1874,8 +1874,8 @@
     });
     return deckFromCollection(coll);
   }
-  /* Custom decks: a list of card ids, limited by copies owned and the copy caps. Returns problems (empty = valid). */
-  function deckProblems(ids, collection, hangarIds) {
+  /* Copy caps, size, fusion placement and Hangar shape. Does not check ownership. */
+  function deckRuleProblems(ids, hangarIds) {
     const probs = [];
     if (!Array.isArray(ids)) return ["no deck"];
     if (ids.length !== DECK_SIZE) probs.push(ids.length + " / " + DECK_SIZE + " cards");
@@ -1885,10 +1885,7 @@
       const c = def(id);
       if (!c) { probs.push("unknown card"); return; }
       if (isFusion(c)) { probs.push(c.name + " belongs in the Hangar"); return; }
-      const rec = ownedRec(collection, id);
-      const have = rec && rec.owned ? rec.n || 1 : 0;
-      if (counts[id] > have) probs.push(c.name + ": you own " + have);
-      else if (counts[id] > copyCap(c)) probs.push(c.name + ": max " + copyCap(c));
+      if (counts[id] > copyCap(c)) probs.push(c.name + ": max " + copyCap(c));
     });
     if (!ids.some((id) => def(id) && def(id).kind === "monster")) probs.push("needs a monster");
     const h = hangarIds || [];
@@ -1900,27 +1897,79 @@
       if (!isFusion(c)) { probs.push(c.name + " is not a fusion"); return; }
       hCounts[id] = (hCounts[id] || 0) + 1;
       if (hCounts[id] > 1) probs.push(c.name + ": one copy in the Hangar");
+    });
+    return probs;
+  }
+  /* Copies you do not own, in the 20 or the Hangar. */
+  function deckOwnedProblems(ids, collection, hangarIds) {
+    const probs = [];
+    if (!Array.isArray(ids)) return probs;
+    const counts = {};
+    ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
+    Object.keys(counts).forEach((id) => {
+      const c = def(id);
+      if (!c || isFusion(c)) return;
+      const rec = ownedRec(collection, id);
+      const have = rec && rec.owned ? rec.n || 1 : 0;
+      if (counts[id] > have) probs.push(c.name + ": you own " + have);
+    });
+    (hangarIds || []).forEach((id) => {
+      const c = def(id);
+      if (!c || !isFusion(c)) return;
       const rec = ownedRec(collection, id);
       const have = rec && rec.owned ? rec.n || 1 : 0;
       if (have < 1) probs.push(c.name + ": you do not own it");
     });
     return probs;
   }
-  /* The deck a player battles with: the active custom deck if it is valid, else the auto deck. */
-  function activeDeck(collection) {
+  function missingCopies(ids, collection, hangarIds) {
+    const out = [];
+    if (!Array.isArray(ids)) return out;
+    const counts = {};
+    ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
+    Object.keys(counts).forEach((id) => {
+      const rec = ownedRec(collection, id);
+      const have = rec && rec.owned ? rec.n || 1 : 0;
+      if (counts[id] > have) out.push({ id, want: counts[id], have, missing: counts[id] - have });
+    });
+    (hangarIds || []).forEach((id) => {
+      const rec = ownedRec(collection, id);
+      const have = rec && rec.owned ? rec.n || 1 : 0;
+      if (have < 1) out.push({ id, want: 1, have: 0, missing: 1, hangar: true });
+    });
+    return out;
+  }
+  function matchTemplate(ids, hangarIds) {
+    const norm = (a) => (a || []).slice().slice().sort().join("\0");
+    const key = norm(ids) + "#" + norm(hangarIds);
+    return ((global.LLCData.TEMPLATES || []).find((t) => norm(t.cards) + "#" + norm(t.hangar || []) === key)) || null;
+  }
+  /* Custom decks: a list of card ids, limited by copies owned and the copy caps. Returns problems (empty = valid). */
+  function deckProblems(ids, collection, hangarIds) {
+    return deckRuleProblems(ids, hangarIds).concat(deckOwnedProblems(ids, collection, hangarIds));
+  }
+  /* The deck a player battles with: the active custom deck if it is valid, else the auto deck.
+     opts.allowLoaner: official templates may be used vs bot even if some cards are not owned. */
+  function activeDeck(collection, opts) {
+    opts = opts || {};
     const c = collection || {};
     const i = c.activeDeck;
     const d = Array.isArray(c.decks) && typeof i === "number" && i >= 0 ? c.decks[i] : null;
     const hangarIds = (d && d.hangar) || [];
-    if (d && d.cards && !deckProblems(d.cards, c, hangarIds).length) {
-      const foilOf = (id) => { const rec = ownedRec(c, id); return !!(rec && rec.foil); };
-      return {
-        cards: d.cards.map((id) => ({ id, foil: foilOf(id) })),
-        hangar: hangarIds.filter((id) => def(id) && isFusion(def(id))).slice(0, 2).map((id) => ({ id, foil: foilOf(id) })),
-        custom: true, name: d.name,
-      };
+    if (d && d.cards && !deckRuleProblems(d.cards, hangarIds).length) {
+      const ownedMiss = deckOwnedProblems(d.cards, c, hangarIds);
+      const tmpl = matchTemplate(d.cards, hangarIds);
+      const loaner = !!(opts.allowLoaner && ownedMiss.length && (d.template === (tmpl && tmpl.id) || tmpl));
+      if (!ownedMiss.length || loaner) {
+        const foilOf = (id) => { const rec = ownedRec(c, id); return !!(rec && rec.foil); };
+        return {
+          cards: d.cards.map((id) => ({ id, foil: foilOf(id) })),
+          hangar: hangarIds.filter((id) => def(id) && isFusion(def(id))).slice(0, 2).map((id) => ({ id, foil: foilOf(id) })),
+          custom: true, loaner, name: d.name, missing: ownedMiss.length ? missingCopies(d.cards, c, hangarIds) : [],
+        };
+      }
     }
-    return Object.assign(deckFromCollection(c), { custom: false });
+    return Object.assign(deckFromCollection(c), { custom: false, loaner: false });
   }
   function validDeck(list) {
     if (!Array.isArray(list) || list.length !== DECK_SIZE) return false;
@@ -1934,7 +1983,7 @@
 
   global.LLCEngine = {
     START_LP, ZONES, DECK_SIZE, HAND_LIMIT, FATIGUE, NORMAL_SUMMONS_PER_TURN,
-    create, apply, view, legal, admin, deckFromCollection, botDeck, validDeck, deckProblems, activeDeck, tributesNeeded, copyCap, cardValue,
+    create, apply, view, legal, admin, deckFromCollection, botDeck, validDeck, deckProblems, deckRuleProblems, deckOwnedProblems, missingCopies, matchTemplate, activeDeck, tributesNeeded, copyCap, cardValue,
     legalFusions, isFusion, ownedRec,
     _atkOf: atkOf, _defOf: defOf, _mon: mon,
   };

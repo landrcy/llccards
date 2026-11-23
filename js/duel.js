@@ -22,16 +22,19 @@
     sessionStorage.setItem("llc-name", myName);
   }
 
-  function myDeck() { return E.activeDeck(LLCStorage.load()); }
+  function myDeck(opts) { return E.activeDeck(LLCStorage.load(), opts); }
 
   /* ================= arena / lobby ================= */
   function renderArena() {
-    const d = myDeck();
+    const d = myDeck({ allowLoaner: true });
     const total = window.LLCData.CARDS.length;
     const owned = LLCStorage.ownedCount();
     const dk = LLCStorage.decks();
     const want = dk.active >= 0 ? dk.list[dk.active] : null;
-    $("deck-line").textContent = d.custom
+    const missN = (d.missing || []).reduce((n, m) => n + m.missing, 0);
+    $("deck-line").textContent = d.custom && d.loaner
+      ? "DECK: " + d.name + " (LOANER VS BOT)  ·  " + missN + " CARD" + (missN === 1 ? "" : "S") + " MISSING  ·  AUTO DECK USED ONLINE"
+      : d.custom
       ? "DECK: " + d.name + " (20 CARDS)  ·  " + owned + " / " + total + " CARDS OWNED"
       : (want ? "\"" + want.name + "\" IS NOT VALID, USING THE AUTO DECK  ·  " : "AUTO DECK: 20 CARDS  ·  ") + owned + " / " + total + " CARDS OWNED" +
         (want ? "" : d.owned < 20 ? "  ·  COMMON STARTERS FILL THE GAPS" : "  ·  YOUR BEST CARDS ARE IN");
@@ -122,7 +125,7 @@
     const seed = (Math.random() * 2 ** 31) >>> 0;
     const diff = LLCStorage.botDiff();
     const bot = E.botDeck(seed ^ 0x5bd1e995, diff);
-    const mine = myDeck();
+    const mine = myDeck({ allowLoaner: true });
     const { state: s, events } = E.create({ seed, decks: [mine.cards, bot.cards], hangars: [mine.hangar || [], bot.hangar || []], names: ["YOU", "BOT"] });
     let timer = null, alive = true;
     const push = (ev) => onView(E.view(s, 0), ev);

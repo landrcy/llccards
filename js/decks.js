@@ -12,7 +12,46 @@
   const countIn = (ids, id) => ids.reduce((a, x) => a + (x === id ? 1 : 0), 0);
   function recOf(data, id) { return E.ownedRec(data, id); }
   function limit(c, data) { const r = recOf(data, c.id); const have = r && r.owned ? r.n || 1 : 0; return Math.min(have, E.copyCap(c)); }
-  function save(ids, name, hangar) { const d = deck(); S.saveDeck(cur, { name: name != null ? name : d.name, cards: ids, hangar: hangar != null ? hangar : (d.hangar || []) }); }
+  function save(ids, name, hangar) {
+    const d = deck();
+    const cards = ids;
+    const h = hangar != null ? hangar : (d.hangar || []);
+    const tmpl = E.matchTemplate(cards, h);
+    S.saveDeck(cur, { name: name != null ? name : d.name, cards, hangar: h, template: tmpl ? tmpl.id : undefined });
+  }
+  function loadTemplate(id) {
+    const t = (D.TEMPLATES || []).find((x) => x.id === id);
+    if (!t) return;
+    const d = deck();
+    const nonempty = (d.cards && d.cards.length) || ((d.hangar || []).length);
+    if (nonempty && !confirm("Replace " + (d.name || "this deck") + " with " + t.label + "?")) return;
+    save(t.cards.slice(), t.name, (t.hangar || []).slice());
+    if (window.LLCAudio) LLCAudio.play("place");
+    render();
+  }
+  function renderTemplates() {
+    const row = $("deck-template-row");
+    if (!row) return;
+    row.innerHTML = "";
+    const lab = document.createElement("span");
+    lab.className = "dt-lbl";
+    lab.textContent = "TEMPLATES";
+    row.appendChild(lab);
+    (D.TEMPLATES || []).forEach((t) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.template = t.id;
+      b.textContent = t.label;
+      b.title = "Load this starter into the selected slot";
+      const d = deck();
+      const on = !!(E.matchTemplate(d.cards, d.hangar || []) && E.matchTemplate(d.cards, d.hangar || []).id === t.id);
+      if (on) b.classList.add("on");
+      b.addEventListener("click", () => loadTemplate(t.id));
+      row.appendChild(b);
+    });
+    row.hidden = false;
+  }
+
 
   function add(id, from) {
     const data = col(), d = deck(), c = D.BY_ID[id];
@@ -59,7 +98,7 @@
     const owned = D.CARDS.filter((c) => limit(c, data) > 0 && !E.isFusion(c)).sort((a, b) => E.cardValue(b) - E.cardValue(a));
     const want = { monster: 11, spell: 6, trap: 3 };
     const kinds = (k) => ids.filter((id) => D.BY_ID[id].kind === k).length;
-    const clean = ids.filter((id) => D.BY_ID[id] && !E.isFusion(D.BY_ID[id]));
+    const clean = ids.filter((id) => D.BY_ID[id] && !E.isFusion(D.BY_ID[id]) && limit(D.BY_ID[id], data) > 0);
     ids.length = 0; clean.forEach((id) => ids.push(id));
     for (let pass = 0; pass < 2 && ids.length < SIZE; pass++) {
       for (let round = 0; round < 3; round++) owned.forEach((c) => {
@@ -96,11 +135,20 @@
     if (!$("screen-decks")) return;
     const data = col(), d = deck(), { active } = S.decks();
     renderTabs();
+    renderTemplates();
     if (document.activeElement !== $("deck-name")) $("deck-name").value = d.name;
-    const probs = E.deckProblems(d.cards, data, d.hangar || []);
-    const valid = !probs.length;
+    const hangar = d.hangar || [];
+    const ruleProbs = E.deckRuleProblems(d.cards, hangar);
+    const ownProbs = E.deckOwnedProblems(d.cards, data, hangar);
+    const tmpl = E.matchTemplate(d.cards, hangar);
+    const miss = E.missingCopies(d.cards, data, hangar);
+    const missN = miss.reduce((n, m) => n + m.missing, 0);
+    const valid = !ruleProbs.length && !ownProbs.length;
+    const loanerOk = !ruleProbs.length && !!tmpl && missN > 0;
     const use = $("deck-use");
-    use.textContent = active === cur ? (valid ? "IN USE ✓" : "IN USE (INVALID: AUTO DECK USED)") : "USE IN BATTLES";
+    use.textContent = active === cur
+      ? (valid ? "IN USE ✓" : loanerOk ? "IN USE (LOANER VS BOT)" : "IN USE (INVALID: AUTO DECK USED)")
+      : "USE IN BATTLES";
     use.classList.toggle("on", active === cur);
 
     // pool
@@ -130,12 +178,18 @@
     });
     ids.forEach((id) => {
       const c = D.BY_ID[id];
+      const rec = recOf(data, id);
+      const have = rec && rec.owned ? rec.n || 1 : 0;
+      const want = countIn(d.cards, id);
+      const gap = Math.max(0, want - have);
       const li = document.createElement("li");
-      li.className = "deck-row k-" + c.kind + " r-" + c.rarity + (id === flashId ? " added" : "");
+      li.className = "deck-row k-" + c.kind + " r-" + c.rarity + (id === flashId ? " added" : "") + (gap ? " missing" : "");
       li.dataset.id = id; li.tabIndex = 0; li.setAttribute("role", "button");
-      li.setAttribute("aria-label", "Remove one " + c.name);
-      li.innerHTML = '<span class="dr-n">x' + countIn(d.cards, id) + '</span><img src="assets/cards/' + id + '.png?v=' + (window.LLC_ASSET_V || "10") + '" alt="" draggable="false"><span class="dr-name">' + c.name + '</span><span class="dr-meta">' +
-        (c.kind === "monster" ? c.stars + "★ " + c.atk : c.kind === "spell" ? "SPELL" : "TRAP") + '</span><span class="dr-x" aria-hidden="true">−</span>';
+      li.setAttribute("aria-label", "Remove one " + c.name + (gap ? ", " + gap + " missing" : ""));
+      li.innerHTML = '<span class="dr-n">x' + want + '</span><img src="assets/cards/' + id + '.png?v=' + (window.LLC_ASSET_V || "10") + '" alt="" draggable="false"><span class="dr-name">' + c.name + '</span><span class="dr-meta">' +
+        (c.kind === "monster" ? c.stars + "★ " + c.atk : c.kind === "spell" ? "SPELL" : "TRAP") + '</span>' +
+        (gap ? '<span class="dr-miss">' + gap + " MISS</span>" : '<span class="dr-miss"></span>') +
+        '<span class="dr-x" aria-hidden="true">−</span>';
       list.appendChild(li);
     });
     if (!ids.length) list.innerHTML = '<li class="deck-row empty-row">Empty deck. Click cards on the left, or AUTO-FILL.</li>';
@@ -147,11 +201,16 @@
       if ($("hangar-count")) $("hangar-count").textContent = hangar.length + " / 2";
       hangar.forEach((id) => {
         const c = D.BY_ID[id]; if (!c) return;
+        const rec = recOf(data, id);
+        const have = rec && rec.owned ? rec.n || 1 : 0;
+        const gap = have < 1 ? 1 : 0;
         const li = document.createElement("li");
-        li.className = "deck-row k-monster r-" + c.rarity + (id === flashId ? " added" : "");
+        li.className = "deck-row k-monster r-" + c.rarity + (id === flashId ? " added" : "") + (gap ? " missing" : "");
         li.dataset.id = id; li.tabIndex = 0; li.setAttribute("role", "button");
-        li.setAttribute("aria-label", "Remove " + c.name + " from Hangar");
-        li.innerHTML = '<span class="dr-n">F</span><img src="assets/cards/' + id + '.png?v=' + (window.LLC_ASSET_V || "16") + '" alt="" draggable="false"><span class="dr-name">' + c.name + '</span><span class="dr-meta">FUSION ' + c.atk + '</span><span class="dr-x" aria-hidden="true">−</span>';
+        li.setAttribute("aria-label", "Remove " + c.name + " from Hangar" + (gap ? ", missing" : ""));
+        li.innerHTML = '<span class="dr-n">F</span><img src="assets/cards/' + id + '.png?v=' + (window.LLC_ASSET_V || "16") + '" alt="" draggable="false"><span class="dr-name">' + c.name + '</span><span class="dr-meta">FUSION ' + c.atk + '</span>' +
+          (gap ? '<span class="dr-miss">MISS</span>' : '<span class="dr-miss"></span>') +
+          '<span class="dr-x" aria-hidden="true">−</span>';
         hl.appendChild(li);
       });
       if (!hangar.length) hl.innerHTML = '<li class="deck-row empty-row">Empty Hangar. Click a fusion monster to dock it.</li>';
@@ -175,8 +234,17 @@
       const soft = [];
       if (valid && hi + mid > low) soft.push("lots of tribute monsters, few to tribute");
       if (valid && mons < 8) soft.push("few monsters");
-      w.textContent = valid ? (soft.length ? "OK, but: " + soft.join(", ") + "." : "READY TO BATTLE.") : "NOT VALID: " + probs.join(" · ") + (active === cur ? "  (the auto deck is used until it's fixed)" : "");
-      w.className = "deck-warn " + (valid ? "ok" : "bad");
+      if (valid) {
+        w.textContent = soft.length ? "OK, but: " + soft.join(", ") + "." : "READY TO BATTLE.";
+        w.className = "deck-warn ok";
+      } else if (loanerOk) {
+        w.textContent = missN + " card" + (missN === 1 ? "" : "s") + " missing — loaner vs bot. Not valid online until you own them.";
+        w.className = "deck-warn loaner";
+      } else {
+        const probs = ruleProbs.concat(ownProbs);
+        w.textContent = "NOT VALID: " + probs.join(" · ") + (active === cur ? "  (the auto deck is used until it's fixed)" : "");
+        w.className = "deck-warn bad";
+      }
     }
   }
 
@@ -236,5 +304,6 @@
   $("deck-use").addEventListener("click", () => { const { active } = S.decks(); S.setActiveDeck(active === cur ? -1 : cur); render(); });
 
   document.addEventListener("llc:screen", (e) => { if (e.detail.name === "decks") { const a = S.decks().active; if (a >= 0) cur = a; render(); } });
-  window.LLCDecks = { render, add, remove, removeHangar, autofill, get slot() { return cur; }, set slot(i) { cur = i; render(); } };
+  if (window.LLC && LLC.screen === "decks") { const a = S.decks().active; if (a >= 0) cur = a; render(); }
+  window.LLCDecks = { render, add, remove, removeHangar, autofill, loadTemplate, get slot() { return cur; }, set slot(i) { cur = i; render(); } };
 })();

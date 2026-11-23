@@ -160,9 +160,28 @@
     extra.forEach((c) => CARDS.push(c));
     extra.forEach((c) => { BY_ID[c.id] = c; });
   }
+  /* Official starter decks the builder can load in one click. Hangar is 0–2 fusions, not part of the 20. */
+  const TEMPLATES = [
+    {
+      id: "ed1-starter",
+      name: "INK STARTER",
+      label: "EDITION ONE: INK STARTER",
+      set: "edition_one",
+      cards: [
+        "stick_runner","stick_runner",
+        "pencil_warrior","pencil_warrior","pencil_warrior",
+        "doodle_dog","doodle_dog",
+        "crayon_kid","squiggle_worm","tape_mummy","doodle_prince",
+        "erase","erase","quick_sketch","quick_sketch","crumple","doodle_park",
+        "sticky_note","sticky_note","pitfall_doodle"
+      ],
+      hangar: []
+    }
+  ];
+
   global.LLCData = {
     SET_ID, SET_NAME, PACK_SIZE, FOIL_CHANCE, STAR_WEIGHT, PACKS, RARITY_NAME, RARITY_ORDER,
-    CARDS, BY_ID, params, forceFoil, makeRng, pullPack, rateTable, mulberry32, fullArt,
+    CARDS, BY_ID, TEMPLATES, params, forceFoil, makeRng, pullPack, rateTable, mulberry32, fullArt,
     register, M, S, T,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -87,7 +87,12 @@
     while (list.length < DECK_SLOTS) list.push({ name: "DECK " + (list.length + 1), cards: [] });
     return { list, active: typeof d.activeDeck === "number" ? d.activeDeck : -1 };
   }
-  function saveDeck(i, deck) { const d = load(); const cur = decks(); cur.list[i] = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40), hangar: (deck.hangar || []).slice(0, 2) }; d.decks = cur.list; save(d); }
+  function saveDeck(i, deck) {
+    const d = load(); const cur = decks();
+    const rec = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40), hangar: (deck.hangar || []).slice(0, 2) };
+    if (deck.template) rec.template = String(deck.template).slice(0, 40);
+    cur.list[i] = rec; d.decks = cur.list; save(d);
+  }
   function setActiveDeck(i) { const d = load(); d.activeDeck = i; save(d); }
 
   /* VS BOT difficulty (easy / normal / hard). Remembered across sessions. */

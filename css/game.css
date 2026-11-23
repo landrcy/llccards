@@ -1221,7 +1221,15 @@ html, body { height: 100%; overflow: hidden; }
 .deck-warn.ok { border: 2px solid #000; }
 .deck-warn.shake { animation: slot-nope 0.32s linear; }
 .deck-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
-.deck-row { display: grid; grid-template-columns: 30px 30px 1fr auto 18px; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px dashed rgba(0,0,0,0.35); cursor: pointer; font-size: clamp(15px, 1.15vw, 20px); letter-spacing: 0.03em; }
+.deck-template-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin: 6px 0 0; }
+.deck-template-row .dt-lbl { font-size: clamp(12px, 0.9vw, 16px); letter-spacing: 0.1em; opacity: 0.75; }
+.deck-template-row button { font-size: clamp(12px, 0.95vw, 16px); padding: 4px 10px; min-height: 0; white-space: nowrap; }
+.deck-template-row button.on { background: #000; color: #fff; }
+.deck-warn.loaner { border: 2px dashed #000; }
+.deck-row { display: grid; grid-template-columns: 30px 30px 1fr auto auto 18px; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px dashed rgba(0,0,0,0.35); cursor: pointer; font-size: clamp(15px, 1.15vw, 20px); letter-spacing: 0.03em; }
+.deck-row.missing { opacity: 0.55; }
+.deck-row .dr-miss { font-size: 0.72em; letter-spacing: 0.04em; min-width: 0; }
+.deck-row.missing .dr-miss { background: #000; color: #fff; padding: 0 5px; border-radius: 6px 8px 5px 7px; white-space: nowrap; }
 .deck-row img { width: 30px; height: 39px; object-fit: cover; image-rendering: pixelated; border: 1px solid #000; }
 .deck-row:hover, .deck-row:focus-visible { background: #000; color: #fff; outline: none; }
 .deck-row .dr-meta { opacity: 0.7; font-size: 0.85em; }
@@ -1251,7 +1259,7 @@ html, body { height: 100%; overflow: hidden; }
 .admin-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000; color: #fff; padding: 8px 16px; border-radius: 10px 12px 9px 13px; z-index: 1000; font-size: 16px; }
 @media (max-width: 720px) { .admin { padding: 8px; } .admin-box { padding: 10px 12px; } .admin-row button { font-size: 12px; } }
 /* "pressed / selected" buttons: invert the whole pixel 9-slice (fill + border) so they read as solid black with white text */
-.binder-filter button.on, .admin-row button.on, .admin-row button.danger, .deck-tabs button.on, .deck-tools button.on {
+.binder-filter button.on, .admin-row button.on, .admin-row button.danger, .deck-tabs button.on, .deck-tools button.on, .deck-template-row button.on {
   background: var(--paper); color: var(--ink); filter: invert(1);
 }
 @media (min-width: 1800px) { .admin-box { zoom: 1.35; } .card-zoom .zoom-info { zoom: 1.2; } }
