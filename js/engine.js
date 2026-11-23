@@ -61,8 +61,11 @@
         lp: START_LP, deck: shuffle(s, uids), hand: [], grave: [], hangar,
         mz: new Array(ZONES).fill(null), sz: new Array(ZONES).fill(null),
         summons: 0, fused: false, trapTurn: -1, dummyUsed: false, fatigue: 0,
+        directiveUsed: false, firstDmgTaken: false, jamSpells: false, attackCap: 0, noBattle: false,
+        network: 0, dockUsed: false, stationUsed: false,
       });
     });
+    s.banished = [];
     s.first = opts.first != null ? opts.first : (rng(s) < 0.5 ? 0 : 1);
     s.active = s.first;
     const ev = [];
@@ -141,7 +144,13 @@
     if (c.fx.atkPerType) {
       a += (c.fx.atkPerType[1] || 0) * countType(s, p, c.fx.atkPerType[0], m.uid);
     }
+    if (c.fx.atkPerDrone) a += (c.fx.atkPerDrone) * (m.drones || 0);
+    if (c.fx.modeSwitch && m.mode === "flight") a += (c.fx.flightAtk || 0);
+    if (s.players[p] && s.players[p].network && battlingWith(s, m)) a += s.players[p].network;
     return Math.max(0, a);
+  }
+  function battlingWith(s, m) {
+    return !!(s._battleUid && s._battleUid !== m.uid && controller(s, m) === controller(s, { uid: s._battleUid }));
   }
   function defOf(s, m) {
     if (!m) return 0;
@@ -149,6 +158,8 @@
     let d = c.def + (m.dmod || 0);
     attached(s, m.uid).forEach((x) => { d += x.c.fx.def || 0; });
     d += fieldMod(s, c, m)[1];
+    if (c.fx && c.fx.modeSwitch && m.mode === "ground") d += (c.fx.groundDef || 0);
+    if (m.redirectDefTmp) d += m.redirectDefTmp;
     return Math.max(0, d);
   }
   const pierces = (s, m) => {
@@ -168,9 +179,15 @@
   }
   function maxAttacks(s, m) {
     const c = cardOf(s, m.uid);
+    const p = controller(s, m);
     let n = 1;
     if (c.fx && c.fx.attackTwice) n = 2;
     if (c.fx && c.fx.extraAttackOnKill && m.extraReady) n += 1;
+    if (m.afterburn) n = Math.max(n, 2);
+    if (m.repriseReady) n += 1;
+    if (c.fx && c.fx.omegaDirective && s.players[p] && s.players[p].directiveUntil === s.turn) {
+      n = Math.max(n, m.directiveAtks || Math.max(1, countMon(s, 1 - p)));
+    }
     return n;
   }
   function pickMats(s, p, recipe) {
@@ -179,7 +196,7 @@
     const avail = () => s.players[p].mz.map((m, i) => (!m || used[i] || !m.faceUp) ? null : { i, m, c: cardOf(s, m.uid) }).filter(Boolean);
     for (let r = 0; r < recipe.length; r++) {
       const req = recipe[r];
-      const found = req.id ? avail().find((x) => x.c.id === req.id) : avail().find((x) => x.c.type === req.type);
+      const found = (req.id ? avail().filter((x) => x.c.id === req.id) : avail().filter((x) => x.c.type === req.type)).find((x) => !x.m.stasis);
       if (!found) return null;
       used[found.i] = true;
       mats.push(found.i);
@@ -220,6 +237,7 @@
     if (c.fx && c.fx.onMaterialDraw) {
       if (draw(s, owner, ev, true)) log(s, ev, c.name + ": {P" + owner + ":draws|draw} 1 (material).");
     }
+    if (c.fx && c.fx.onMaterialCharge) s._pendingFusionCharge = (s._pendingFusionCharge || 0) + c.fx.onMaterialCharge;
   }
   function performFusion(s, p, choice, ev) {
     const pl = s.players[p];
@@ -231,9 +249,14 @@
     if (slot === -1) { pl.hangar.push(choice.uid); log(s, ev, "MECH LINK fizzles: no room."); return; }
     pl.mz[slot] = newMon(s, choice.uid, "atk");
     pl.fused = true;
+    if (s._pendingFusionCharge) {
+      pl.mz[slot].charge = (pl.mz[slot].charge || 0) + s._pendingFusionCharge;
+      log(s, ev, nm(s, choice.uid) + " boots up with " + s._pendingFusionCharge + " Charge.");
+      s._pendingFusionCharge = 0;
+    }
     ev.push({ e: "summon", p, slot, pos: "atk", fusion: true, id: cardOf(s, choice.uid).id });
     log(s, ev, "{P" + p + ":links|link} " + nm(s, choice.uid) + " from the Hangar!");
-    onSummon(s, p, slot, ev);
+    onSummon(s, p, slot, ev, "fusion");
   }
 
   /* ---------- moving cards ---------- */
@@ -253,7 +276,33 @@
     return m;
   }
   /* by: "battle" | "effect"; killer: attacking monster for battle deaths */
+  function tryPreventDestroy(s, p, slot, ev, by) {
+    const m = s.players[p].mz[slot];
+    if (!m) return false;
+    const c = cardOf(s, m.uid);
+    if (by === "battle" && s.players[p].directiveUntil === s.turn && c.type === "MACHINE") {
+      log(s, ev, "Omega Directive holds " + c.name + ".");
+      ev.push({ e: "saved", p, slot, id: c.id, why: "directive" });
+      return true;
+    }
+    if ((m.armor || 0) > 0) {
+      m.armor -= 1;
+      log(s, ev, c.name + "'s Armor absorbs the hit (" + m.armor + " left).");
+      ev.push({ e: "armor", p, slot, left: m.armor });
+      return true;
+    }
+    const plate = attached(s, m.uid).find((x) => x.c.fx && x.c.fx.sacrificeEquip);
+    if (plate) {
+      s.players[plate.p].sz[plate.slot] = null;
+      sendToGrave(s, plate.st.uid);
+      ev.push({ e: "unequip", p: plate.p, slot: plate.slot, id: plate.c.id });
+      log(s, ev, plate.c.name + " shatters to save " + c.name + ".");
+      return true;
+    }
+    return false;
+  }
   function destroyMon(s, p, slot, ev, by, killer) {
+    if (tryPreventDestroy(s, p, slot, ev, by)) return;
     const m = leaveField(s, p, slot, ev);
     if (!m) return;
     const c = cardOf(s, m.uid);
@@ -272,11 +321,50 @@
       ev.push({ e: "debuff", p: controller(s, killer), slot: findMon(s, killer.uid).slot, amount: -amt });
       log(s, ev, c.name + " stains " + nm(s, killer.uid) + ": -" + amt + " ATK for good.");
     }
+    if (c.fx && c.fx.lockOnDeath) {
+      const opp = 1 - owner;
+      let best = null, bi = -1;
+      s.players[opp].mz.forEach((x, i) => { if (x && (!best || atkOf(s, x) > atkOf(s, best))) { best = x; bi = i; } });
+      if (best) { best.lockOn = true; log(s, ev, c.name + " paints a Lock-On on " + nm(s, best.uid) + "."); ev.push({ e: "lockon", p: opp, slot: bi }); }
+    }
   }
   function damage(s, p, amount, ev, kind) {
     if (amount <= 0 || s.winner != null) return;
     if (s.god[p]) { ev.push({ e: "damage", p, amount: 0, kind: kind || "", god: true }); return; }
     const pl = s.players[p];
+    if (kind === "battle") {
+      if (s._redirectBattleTo != null && s._redirectBattleFrom === p) {
+        const to = s._redirectBattleTo;
+        s._redirectBattleTo = null;
+        log(s, ev, "Reflect Array sends " + amount + " back at {N" + to + "}.");
+        damage(s, to, amount, ev, "reflect");
+        return;
+      }
+      if (!pl.firstDmgTaken) {
+        const tread = pl.mz.some((m) => m && m.pos === "def" && cardOf(s, m.uid).fx && cardOf(s, m.uid).fx.firstDmgZeroIfDef);
+        if (tread) {
+          pl.firstDmgTaken = true;
+          log(s, ev, "Tread plating grounds the first hit.");
+          ev.push({ e: "damage", p, amount: 0, kind: "battle", blocked: true });
+          return;
+        }
+      }
+      const aegis = pl.mz.find((m) => m && cardOf(s, m.uid).fx && cardOf(s, m.uid).fx.payDefToNegate && !m.aegisUsed && defOf(s, m) >= (cardOf(s, m.uid).fx.payDefToNegate || 0));
+      if (aegis) {
+        const pay = cardOf(s, aegis.uid).fx.payDefToNegate;
+        aegis.dmod = (aegis.dmod || 0) - pay;
+        aegis.aegisUsed = true;
+        log(s, ev, nm(s, aegis.uid) + " burns " + pay + " DEF to zero the damage.");
+        ev.push({ e: "damage", p, amount: 0, kind: "battle", blocked: true });
+        return;
+      }
+      if (s._abortSacrifice && s._abortSacrifice.p === p) {
+        s._abortSacrifice = null;
+        log(s, ev, "ABORT: the damage is cancelled.");
+        ev.push({ e: "damage", p, amount: 0, kind: "battle", blocked: true });
+        return;
+      }
+    }
     pl.lp = Math.max(0, pl.lp - amount);
     ev.push({ e: "damage", p, amount, kind: kind || "" });
     if (pl.lp <= 0) lose(s, p, ev, "{P" + p + ":is|are} out of LP.");
@@ -293,7 +381,64 @@
     const pl = s.players[p];
     pl.summons = 0;
     pl.fused = false;
-    s.players.forEach((q) => q.mz.forEach((m) => { if (m) { m.attacked = 0; m.posChanged = false; m.lordUsed = false; m.guardUsed = false; m.protected = false; m.extraReady = false; } }));
+    s.players.forEach((q) => q.mz.forEach((m) => { if (m) {
+      m.attacked = 0; m.posChanged = false; m.lordUsed = false; m.guardUsed = false; m.protected = false; m.extraReady = false;
+      m.fxUsed = false; m.repriseUsed = false; m.aegisUsed = false; m.redirectDefTmp = 0; m.atkEqDef = false; m.rifleUsed = false;
+      m.firstHitUsed = false;
+    } }));
+    pl.firstDmgTaken = false;
+    pl.jamSpells = false;
+    pl.dockUsed = false;
+    pl.stationUsed = false;
+    pl.noBattle = false;
+    pl.network = 0;
+    if (pl.attackCapClearOn === p) { pl.attackCap = 0; pl.attackCapClearOn = null; }
+    // delayed lock-on fire, set sights, dock burst, repair watch, cloak/stasis expiry, overheat skip
+    pl.mz.forEach((m) => {
+      if (!m) return;
+      const c = cardOf(s, m.uid);
+      // skipAttack is cleared at endTurn after the skipped attack turn
+      if ((m.heat || 0) >= ((c.fx && c.fx.overheatAt) || 3) && c.fx && c.fx.overheatAt) {
+        m.skipAttack = true; m.heat = 0;
+        log(s, ev, c.name + " overheats: it cannot attack this turn, Heat vents.");
+      }
+      if (m.cloakUntil === s.turn) { m.cloaked = false; m.cloakUntil = 0; }
+      if (m.stasisUntil === s.turn) { m.stasis = false; m.stasisUntil = 0; }
+      if (m.noAttackUntil === s.turn) { m.noAttackNext = false; m.noAttackUntil = 0; }
+      if (m.dockBurst) { m.tmp = (m.tmp || 0) + m.dockBurst; log(s, ev, c.name + " undocks, +" + m.dockBurst + " ATK this turn."); m.dockBurst = 0; m.docked = false; }
+      if (m.lockFire && m.lockFire.turn === s.turn) {
+        const opp = 1 - p;
+        const tgt = mon(s, opp, m.lockFire.slot);
+        if (tgt && tgt.lockOn) {
+          const drop = m.lockFire.atk || 1000, dmg = m.lockFire.dmg || 1000;
+          tgt.mod = (tgt.mod || 0) - drop;
+          ev.push({ e: "debuff", p: opp, slot: m.lockFire.slot, amount: -drop });
+          log(s, ev, c.name + " fires the locked shot: " + nm(s, tgt.uid) + " loses " + drop + " ATK, {P" + opp + ":takes|take} " + dmg + ".");
+          damage(s, opp, dmg, ev, "effect");
+        }
+        m.lockFire = null;
+      }
+      if (m.lockDebuff && m.lockDebuff.turn === s.turn) {
+        const opp = 1 - p;
+        const tgt = mon(s, opp, m.lockDebuff.slot);
+        if (tgt && tgt.lockOn) {
+          tgt.tmp = (tgt.tmp || 0) - (m.lockDebuff.amt || 600);
+          ev.push({ e: "debuff", p: opp, slot: m.lockDebuff.slot, amount: -(m.lockDebuff.amt || 600) });
+          log(s, ev, "Lock-On resolves: " + nm(s, tgt.uid) + " loses " + (m.lockDebuff.amt || 600) + " ATK this turn.");
+        }
+        m.lockDebuff = null;
+      }
+      if (c.fx && c.fx.setSights && m.pos === "def") {
+        m.pos = "atk"; m.tmp = (m.tmp || 0) + c.fx.setSights; m.noDirect = true;
+        ev.push({ e: "pos", p, slot: pl.mz.indexOf(m) });
+        log(s, ev, c.name + " sets sights: +" + c.fx.setSights + " ATK this turn, cannot attack directly.");
+      }
+      if (c.fx && c.fx.repairWatch && m.pos === "def") {
+        const others = pl.mz.filter((x) => x && x !== m && cardOf(s, x.uid).type === "MACHINE");
+        const tgt = others[0] || m;
+        if (tgt) { tgt.protected = true; log(s, ev, c.name + " runs nanites over " + nm(s, tgt.uid) + "."); }
+      }
+    });
     s.phase = "draw";
     ev.push({ e: "turn", p, turn: s.turn });
     // upkeep costs of the overpowered cards
@@ -319,7 +464,17 @@
   }
   function endTurn(s, ev) {
     s.phase = "end";
-    s.players.forEach((q) => q.mz.forEach((m) => { if (m) m.tmp = 0; }));
+    const actor = s.players[s.active];
+    actor.mz.forEach((m) => {
+      if (!m) return;
+      const c = cardOf(s, m.uid);
+      if (c.fx && c.fx.droneBuild && (m.attacked || 0) === 0) {
+        m.drones = Math.min(3, (m.drones || 0) + 1);
+        log(s, ev, c.name + " deploys a Drone (" + m.drones + ").");
+      }
+      if (m.skipAttack && (m.attacked || 0) === 0) m.skipAttack = false;
+    });
+    s.players.forEach((q) => q.mz.forEach((m) => { if (m) { m.attackedLast = (m.attacked || 0) > 0; m.tmp = 0; m.noDirect = false; m.emp = false; } }));
     const pl = s.players[s.active];
     if (pl.hand.length > HAND_LIMIT) {
       s.pending = { type: "discard", player: s.active, count: pl.hand.length - HAND_LIMIT, then: "endturn" };
@@ -343,6 +498,8 @@
       if (!mine && spellUntargetable(s, m, p)) return;
       if (c.fx.maxAtk != null && atkOf(s, m) > c.fx.maxAtk) return;
       if (c.fx.onlyIds && c.fx.onlyIds.indexOf(cardOf(s, m.uid).id) === -1) return;
+      if (c.fx.needType && typeof c.fx.needType === "string" && cardOf(s, m.uid).type !== c.fx.needType) return;
+      if (c.fx.stallAttack && !(m.attacked > 0 || m.attackedLast)) return;
       if (c.id === "knights_charge" && ["box_knight", "pencil_warrior"].indexOf(cardOf(s, m.uid).id) === -1) return;
       out.push({ p: q, slot });
     }));
@@ -368,8 +525,15 @@
     if (c.fx.drawDiscard) return pl.deck.length >= 1;
     if (c.fx.wipeAll) return anyMon;
     if (c.fx.revive) return graveRevive(s, p, c.fx.revive) != null && freeSlot(pl.mz) !== -1;
-    if (c.fx.needType && countType(s, p, c.fx.needType[0]) < c.fx.needType[1]) return false;
+    if (c.fx.needType) {
+      if (Array.isArray(c.fx.needType) && countType(s, p, c.fx.needType[0]) < c.fx.needType[1]) return false;
+    }
     if (c.fx.mechLink) return legalFusions(s, p).length > 0;
+    if (c.fx.hangarRecall) return pl.mz.some((m) => m && isFusion(cardOf(s, m.uid)));
+    if (c.fx.salvageHalf) return pl.grave.some((u) => cardOf(s, u).type === "MACHINE") && pl.mz.some((m) => m && cardOf(s, m.uid).type === "MACHINE");
+    if (c.fx.mainframe) return pl.deck.length >= 1;
+    if (c.fx.eventHorizon) return [0, 1].some((q) => countMon(s, q) > 0);
+    if (c.fx.attackCap) return true;
     switch (c.id) {
       case "quick_sketch": case "masterpiece": return pl.deck.length >= 1;
       case "ink_flood": return countMon(s, 1 - p) > 0;
@@ -395,8 +559,15 @@
         if (pay && pl.lp <= pay) return;
         const pop = c.fx.popIfAtk != null ? c.fx.popIfAtk : (c.id === "spike_pit" ? 1600 : null);
         if (pop != null && (A > pop || untargetable(s, ctx.attacker, p))) return;
+        if (c.fx.ifDefend && ctx.target == null) return;
+        if (c.fx.ifMyMachine) {
+          if (ctx.target == null) return;
+          const d = mon(s, p, ctx.target);
+          if (!d || cardOf(s, d.uid).type !== "MACHINE") return;
+        }
+        if (c.fx.zeroDmgSacrifice && !pl.mz.some((m) => m && cardOf(s, m.uid).type === "MACHINE")) return;
       }
-      if (on === "summon") {
+      if (on === "summon" || on === "ss") {
         const min = c.fx.minAtk != null ? c.fx.minAtk : (c.id === "pitfall_doodle" ? 1500 : 0);
         if (atkOf(s, ctx.m) < min || untargetable(s, ctx.m, p)) return;
       }
@@ -427,17 +598,26 @@
     if (s.turn === 1) return false;
     if (blocked(s, m)) return false;
     const c = cardOf(s, m.uid);
-    if (m.summonedTurn === s.turn && c.id !== "stick_runner" && !(c.fx && c.fx.haste)) return false;
+    if (m.skipAttack || m.noAttackNext || m.docked) return false;
+    if (c.fx && c.fx.modeSwitch && m.mode === "ground") return false;
+    if (s.players[p].attackCap) {
+      const already = s.players[p].mz.some((x) => x && (x.attacked || 0) > 0);
+      if (already) return false;
+    }
+    const fieldHaste = s.field && cardOf(s, s.field.uid).fx && cardOf(s, s.field.uid).fx.fieldFusionHaste && s.field.owner === p && isFusion(c);
+    if (m.summonedTurn === s.turn && c.id !== "stick_runner" && !(c.fx && c.fx.haste) && !fieldHaste) return false;
     return true;
   }
   function attackTargets(s, p) {
     const o = 1 - p;
     const opp = s.players[o].mz.map((m, i) => (m ? i : -1)).filter((i) => i >= 0);
-    const taunts = opp.filter((i) => {
+    const open = opp.filter((i) => !s.players[o].mz[i].cloaked);
+    const pool = open.length ? open : opp; // if all cloaked, cloak fails open
+    const taunts = pool.filter((i) => {
       const c = cardOf(s, s.players[o].mz[i].uid);
       return c.id === "tape_mummy" || !!(c.fx && c.fx.taunt);
     });
-    return taunts.length ? taunts : opp;
+    return taunts.length ? taunts : pool;
   }
   function legal(s, p) {
     const L = { hand: {}, mz: {}, sz: {}, phase: false, attackDirect: false, atkTargets: {}, fly: {}, fusions: [] };
@@ -454,6 +634,7 @@
             const room = freeSlot(pl.mz) !== -1 || need > 0;
             if (canNormalSummon(pl) && countMon(s, p) >= need && room) opts.push("summon", "set");
             if (c.fx && c.fx.ssIfType && countType(s, p, c.fx.ssIfType) > 0 && freeSlot(pl.mz) !== -1) opts.push("ss");
+            if (c.fx && c.fx.ssBounceType && countType(s, p, c.fx.ssBounceType) > 0 && freeSlot(pl.mz) !== -1) opts.push("ss");
           }
         } else {
           if (c.kind === "spell" && spellUsable(s, p, c, true)) opts.push("activate");
@@ -464,10 +645,27 @@
       pl.mz.forEach((m, slot) => {
         if (!m) return;
         const o = [];
-        if (!m.posChanged && m.summonedTurn !== s.turn && !m.attacked) o.push("pos");
+        if (!m.posChanged && m.summonedTurn !== s.turn && !m.attacked && !m.stasis) o.push("pos");
         const mc = cardOf(s, m.uid);
         if (mc.id === "lord_of_lines" && !m.lordUsed && countMon(s, p) > 1) o.push("effect");
         if (mc.fx && mc.fx.protectAlly && !m.guardUsed && countMon(s, p) > 1) o.push("effect");
+        if (!m.fxUsed && (
+          (mc.fx && mc.fx.afterburn) ||
+          (mc.fx && mc.fx.dive && s.players[1-p].mz.some((x) => x && x.pos === "def")) ||
+          (mc.fx && mc.fx.grantArmor && pl.mz.some((x, i) => x && i !== slot && cardOf(s, x.uid).type === "MACHINE")) ||
+          (mc.fx && mc.fx.lockOn && s.players[1-p].mz.some(Boolean)) ||
+          (mc.fx && mc.fx.cloak) ||
+          (mc.fx && mc.fx.redirect && countMon(s, p) > 1) ||
+          (mc.fx && mc.fx.modeSwitch) ||
+          (mc.fx && mc.fx.omegaDirective && !pl.directiveUsed)
+        )) o.push("effect");
+        if (s.field && s.field.owner === p) {
+          const ff = cardOf(s, s.field.uid);
+          if (ff.fx && ff.fx.fieldDock && !pl.dockUsed && mc.type === "MACHINE") o.push("effect");
+          if (ff.fx && ff.fx.fieldHangarCharge && !pl.stationUsed && (pl.hangar || []).length && mc.type === "MACHINE") o.push("effect");
+        }
+        if (attached(s, m.uid).some((x) => x.c.fx && x.c.fx.rifleLock) && !m.rifleUsed && (m.attacked || 0) === 0 && s.players[1-p].mz.some(Boolean)) o.push("effect");
+        if (attached(s, m.uid).some((x) => x.c.fx && x.c.fx.coreSwap) && !m.fxUsed && pl.mz.some((x, i) => x && i !== slot && cardOf(s, x.uid).type === "MACHINE")) o.push("effect");
         L.mz[slot] = o;
       });
       pl.sz.forEach((st, slot) => {
@@ -484,7 +682,7 @@
         if (!m) return;
         const ok = canAttackWith(s, p, slot);
         const c = cardOf(s, m.uid);
-        const direct = !oppHas && c.id !== "robo_ruler";
+        const direct = !oppHas && c.id !== "robo_ruler" && !m.noDirect;
         const fly = oppHas && (c.id === "paper_plane" || !!(c.fx && c.fx.fly));
         L.mz[slot] = ok && (oppHas || direct) ? ["attack"] : [];
         if (ok) { L.atkTargets[slot] = oppHas ? tg : []; L.fly[slot] = fly; }
@@ -495,6 +693,280 @@
   }
 
   /* ---------- spells ---------- */
+
+  function pickMyMachine(s, p, prefer) {
+    const pl = s.players[p];
+    const list = pl.mz.map((m, i) => (m && cardOf(s, m.uid).type === "MACHINE" ? { m, i } : null)).filter(Boolean);
+    if (!list.length) return null;
+    if (prefer != null && list.some((x) => x.i === prefer)) return list.find((x) => x.i === prefer);
+    return list.slice().sort((a, b) => atkOf(s, b.m) - atkOf(s, a.m))[0];
+  }
+  function giveCharge(m, n, ev, s) {
+    if (!m) return;
+    m.charge = Math.min(3, (m.charge || 0) + n);
+    log(s, ev, nm(s, m.uid) + " gains " + n + " Charge (" + m.charge + ").");
+  }
+  function giveArmor(m, n, ev, s) {
+    if (!m) return;
+    m.armor = (m.armor || 0) + n;
+    log(s, ev, nm(s, m.uid) + " gains " + n + " Armor (" + m.armor + ").");
+  }
+  function addHeat(s, m, n, ev) {
+    if (!m) return;
+    const c = cardOf(s, m.uid);
+    m.heat = (m.heat || 0) + n;
+    log(s, ev, nm(s, m.uid) + " gains " + n + " Heat (" + m.heat + ").");
+    const cap = (c.fx && c.fx.overheatAt) || 3;
+    if (m.heat >= cap) {
+      m.heat = 0;
+      m.skipAttack = true;
+      log(s, ev, nm(s, m.uid) + " overheats: it skips its next attack, Heat vents.");
+    }
+  }
+  function banishUid(s, uid, ev) {
+    s.banished = s.banished || [];
+    s.banished.push(uid);
+    ev.push({ e: "banish", id: s.cards[uid].id, uid });
+  }
+  function resolveEd2Spell(s, p, sp, ev, c, tm, target) {
+    const pl = s.players[p], o = 1 - p;
+    if (c.fx.resetPos && tm) {
+      tm.pos = tm.pos === "atk" ? "def" : "atk";
+      tm.attacked = 0;
+      ev.push({ e: "pos", p: target.p, slot: target.slot });
+      log(s, ev, "SYSTEM REBOOT resets " + nm(s, tm.uid) + " — it may attack again.");
+      return true;
+    }
+    if (c.fx.siphon && tm) {
+      const [atk, defn] = c.fx.siphon;
+      tm.mod = (tm.mod || 0) - atk;
+      tm.dmod = (tm.dmod || 0) - defn;
+      ev.push({ e: "debuff", p: target.p, slot: target.slot, amount: -atk });
+      const mine = pickMyMachine(s, p);
+      if (mine) { mine.m.tmp = (mine.m.tmp || 0) + atk; ev.push({ e: "buff", p, slot: mine.i, amount: atk }); }
+      log(s, ev, "DISMANTLE strips " + nm(s, tm.uid) + " for -" + atk + "/-" + defn + (mine ? "; " + nm(s, mine.m.uid) + " +" + atk + " ATK this turn." : "."));
+      return true;
+    }
+    if (c.fx.empLock && tm) {
+      tm.emp = true; tm.stasis = true; tm.stasisUntil = s.turn + 2;
+      log(s, ev, c.name + " locks " + nm(s, tm.uid) + ": effects off, no position change until your next turn.");
+      return true;
+    }
+    if (c.fx.giveCharge && tm && !c.fx.hangarRecall && !c.fx.mainframe) {
+      giveCharge(tm, c.fx.giveCharge, ev, s);
+      return true;
+    }
+    if (c.fx.refit && tm) {
+      tm.mod = 0; tm.dmod = 0;
+      if (c.fx.giveArmor) giveArmor(tm, c.fx.giveArmor, ev, s);
+      log(s, ev, "REPAIR KIT refits " + nm(s, tm.uid) + " to original stats.");
+      return true;
+    }
+    if (c.fx.empPulse && tm) {
+      tm.emp = true;
+      if (cardOf(s, tm.uid).type === "MACHINE") tm.noAttackNext = true;
+      log(s, ev, "EMP pulses " + nm(s, tm.uid) + ": effects negated this turn" + (cardOf(s, tm.uid).type === "MACHINE" ? ", cannot attack." : "."));
+      return true;
+    }
+    if (c.fx.attackCap) {
+      s.players[o].attackCap = c.fx.attackCap;
+      s.players[o].attackCapClearOn = p;
+      log(s, ev, "JAMMER: {P" + o + ":can|can} only attack with 1 monster until {N" + p + "}'s next turn.");
+      return true;
+    }
+    if (c.fx.stallAttack && tm) {
+      tm.noAttackNext = true;
+      tm.noAttackUntil = s.turn + 2;
+      log(s, ev, "WING CLIP stalls " + nm(s, tm.uid) + " — it cannot attack on its next turn.");
+      return true;
+    }
+    if (c.fx.hangarRecall) {
+      const slot = pl.mz.findIndex((m) => m && isFusion(cardOf(s, m.uid)));
+      if (slot < 0) return true;
+      const m = leaveField(s, p, slot, ev);
+      bounceToOwner(s, m, ev);
+      ev.push({ e: "bounce", p, slot, id: cardOf(s, m.uid).id });
+      const mine = pickMyMachine(s, p);
+      if (mine && c.fx.giveCharge) giveCharge(mine.m, c.fx.giveCharge, ev, s);
+      return true;
+    }
+    if (c.fx.salvageHalf) {
+      let best = null;
+      pl.grave.forEach((u) => { const g = cardOf(s, u); if (g.type === "MACHINE" && (!best || g.atk > cardOf(s, best).atk)) best = u; });
+      const mine = pickMyMachine(s, p);
+      if (!best || !mine) return true;
+      pl.grave.splice(pl.grave.indexOf(best), 1);
+      banishUid(s, best, ev);
+      const amt = Math.floor(cardOf(s, best).atk / 2);
+      mine.m.tmp = (mine.m.tmp || 0) + amt;
+      ev.push({ e: "buff", p, slot: mine.i, amount: amt });
+      log(s, ev, "REBUILD salvages " + nm(s, best) + ": " + nm(s, mine.m.uid) + " +" + amt + " ATK this turn.");
+      return true;
+    }
+    if (c.fx.overclock && tm) {
+      tm.tmp = (tm.tmp || 0) + c.fx.overclock;
+      ev.push({ e: "buff", p: target.p, slot: target.slot, amount: c.fx.overclock });
+      log(s, ev, "OVERCLOCK: " + nm(s, tm.uid) + " +" + c.fx.overclock + " ATK this turn.");
+      if (c.fx.addHeat) addHeat(s, tm, c.fx.addHeat, ev);
+      return true;
+    }
+    if (c.fx.stasis && tm) {
+      tm.stasis = true; tm.stasisUntil = s.turn + 2;
+      log(s, ev, "STASIS LOCK freezes " + nm(s, tm.uid) + " (no tribute, no fusion, no position change).");
+      return true;
+    }
+    if (c.fx.network) {
+      pl.network = c.fx.network;
+      log(s, ev, "SQUAD LINK networks your MACHINEs: +" + c.fx.network + " ATK while another battles this turn.");
+      return true;
+    }
+    if (c.fx.mainframe) {
+      const top = pl.deck.splice(0, Math.min(3, pl.deck.length));
+      const pick = top.find((u) => { const d = cardOf(s, u); return d.type === "MACHINE" || d.id === "mech_link"; });
+      const rest = top.filter((u) => u !== pick);
+      if (pick) { pl.hand.push(pick); ev.push({ e: "draw", p }); log(s, ev, "MAINFRAME retrieves " + nm(s, pick) + "."); }
+      rest.forEach((u) => pl.deck.push(u));
+      if (c.fx.giveCharge) { const mine = pickMyMachine(s, p); if (mine) giveCharge(mine.m, c.fx.giveCharge, ev, s); }
+      return true;
+    }
+    if (c.fx.eventHorizon) {
+      log(s, ev, "SINGULARITY collapses the field!");
+      const taken = [[], []];
+      [0, 1].forEach((q) => s.players[q].mz.forEach((m, slot) => {
+        if (!m) return;
+        const left = leaveField(s, q, slot, ev);
+        banishUid(s, left.uid, ev);
+        ev.push({ e: "destroy", p: q, zone: "mz", slot, id: cardOf(s, left.uid).id, banish: true });
+        taken[q].push(left.uid);
+      }));
+      [0, 1].forEach((q) => {
+        const slot = freeSlot(s.players[q].mz);
+        if (slot === -1 || !taken[q].length) return;
+        const uid = taken[q].slice().sort((a, b) => cardOf(s, b).atk - cardOf(s, a).atk)[0];
+        s.banished = (s.banished || []).filter((u) => u !== uid);
+        s.players[q].mz[slot] = newMon(s, uid, "def");
+        ev.push({ e: "summon", p: q, slot, pos: "def", special: true, id: cardOf(s, uid).id });
+        log(s, ev, nm(s, uid) + " crawls back in defense for {N" + q + "}.");
+      });
+      pl.noBattle = true;
+      log(s, ev, "{P" + p + ":cannot|cannot} conduct a Battle Phase this turn.");
+      return true;
+    }
+    return false;
+  }
+
+  function applyEd2Effect(s, p, act, ev) {
+    const pl = s.players[p], o = 1 - p;
+    const m = pl.mz[act.slot];
+    if (!m) throw new Error("no monster");
+    const ec = cardOf(s, m.uid);
+    const markUsed = () => { m.fxUsed = true; ev.push({ e: "effect", p, slot: act.slot }); };
+    const otherSlot = () => {
+      const others = pl.mz.map((x, i) => (x && i !== act.slot ? i : -1)).filter((i) => i >= 0);
+      let tslot = act.target != null ? (typeof act.target === "number" ? act.target : act.target.slot) : -1;
+      if (tslot < 0) tslot = others.slice().sort((i, j) => atkOf(s, pl.mz[j]) - atkOf(s, pl.mz[i]))[0];
+      return others.indexOf(tslot) === -1 ? -1 : tslot;
+    };
+    const oppSlot = () => {
+      const others = s.players[o].mz.map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
+      let tslot = act.target != null ? (typeof act.target === "number" ? act.target : act.target.slot) : -1;
+      if (tslot < 0 || others.indexOf(tslot) === -1) tslot = others.slice().sort((i, j) => atkOf(s, s.players[o].mz[j]) - atkOf(s, s.players[o].mz[i]))[0];
+      return others.indexOf(tslot) === -1 ? -1 : tslot;
+    };
+    if (ec.fx && ec.fx.afterburn) {
+      m.dmod = (m.dmod || 0) - 600; m.afterburn = true; m.maxAtkBonus = (m.maxAtkBonus || 0) + 1;
+      markUsed();
+      log(s, ev, "WING FRAME kicks the afterburners: -600 DEF, it may attack a second monster.");
+      return;
+    }
+    if (ec.fx && ec.fx.dive) {
+      const di = s.players[o].mz.findIndex((x) => x && x.pos === "def");
+      if (di < 0) throw new Error("no defense monster");
+      m.tmp = (m.tmp || 0) - 400;
+      markUsed();
+      log(s, ev, "FLASH JET dives: -400 ATK this turn, destroys " + nm(s, s.players[o].mz[di].uid) + ".");
+      destroyMon(s, o, di, ev, "effect");
+      return;
+    }
+    if (ec.fx && ec.fx.grantArmor) {
+      const tslot = otherSlot();
+      if (tslot < 0 || cardOf(s, pl.mz[tslot].uid).type !== "MACHINE") throw new Error("pick another MACHINE");
+      giveArmor(pl.mz[tslot], 1, ev, s);
+      markUsed();
+      return;
+    }
+    if (ec.fx && ec.fx.lockOn) {
+      const tslot = oppSlot();
+      if (tslot < 0) throw new Error("no target");
+      s.players[o].mz[tslot].lockOn = true;
+      m.lockDebuff = { turn: s.turn + 1, slot: tslot, amt: ec.fx.lockOnDebuff || 600 };
+      markUsed();
+      log(s, ev, ec.name + " locks on to " + nm(s, s.players[o].mz[tslot].uid) + ".");
+      return;
+    }
+    if (ec.fx && ec.fx.cloak) {
+      m.cloaked = true; m.cloakUntil = s.turn + 2;
+      markUsed();
+      log(s, ev, ec.name + " phases out — it cannot be attacked until your next Standby.");
+      return;
+    }
+    if (ec.fx && ec.fx.redirect) {
+      const tslot = otherSlot();
+      if (tslot < 0) throw new Error("pick another monster");
+      pl.mz[tslot].redirectTo = act.slot;
+      markUsed();
+      log(s, ev, ec.name + " will intercept attacks aimed at " + nm(s, pl.mz[tslot].uid) + ".");
+      return;
+    }
+    if (ec.fx && ec.fx.modeSwitch) {
+      m.mode = m.mode === "flight" ? "ground" : "flight";
+      markUsed();
+      log(s, ev, ec.name + " switches to " + (m.mode === "flight" ? "Flight (+ATK)" : "Ground (+DEF, cannot attack)") + ".");
+      return;
+    }
+    if (ec.fx && ec.fx.omegaDirective) {
+      if (pl.directiveUsed) throw new Error("already used");
+      pl.directiveUsed = true;
+      pl.directiveUntil = s.turn;
+      m.directiveAtks = Math.max(1, countMon(s, 1 - p));
+      markUsed();
+      log(s, ev, "APEX OMEGA issues the Omega Directive: your MACHINEs cannot be destroyed by battle this turn, and it may attack each enemy once.");
+      return;
+    }
+    if (s.field && s.field.owner === p && cardOf(s, s.field.uid).fx.fieldDock && !pl.dockUsed && ec.type === "MACHINE") {
+      m.docked = true; pl.dockUsed = true;
+      m.dockBurst = cardOf(s, s.field.uid).fx.dockBurst || 700;
+      markUsed();
+      log(s, ev, nm(s, m.uid) + " docks at NEBULA DOCK (cannot attack). It will undock with +" + m.dockBurst + " ATK next Standby.");
+      return;
+    }
+    if (s.field && s.field.owner === p && cardOf(s, s.field.uid).fx.fieldHangarCharge && !pl.stationUsed && (pl.hangar || []).length && ec.type === "MACHINE") {
+      giveCharge(m, 1, ev, s); pl.stationUsed = true; markUsed();
+      return;
+    }
+    if (attached(s, m.uid).some((x) => x.c.fx && x.c.fx.rifleLock) && !m.rifleUsed) {
+      const tslot = oppSlot();
+      if (tslot < 0) throw new Error("no target");
+      s.players[o].mz[tslot].lockOn = true;
+      m.rifleUsed = true;
+      ev.push({ e: "effect", p, slot: act.slot });
+      log(s, ev, "RAIL RIFLE locks on to " + nm(s, s.players[o].mz[tslot].uid) + ".");
+      return;
+    }
+    if (attached(s, m.uid).some((x) => x.c.fx && x.c.fx.coreSwap)) {
+      const tslot = otherSlot();
+      if (tslot < 0 || cardOf(s, pl.mz[tslot].uid).type !== "MACHINE") throw new Error("pick another MACHINE");
+      const eq = attached(s, m.uid).find((x) => x.c.fx && x.c.fx.coreSwap);
+      eq.st.attach = pl.mz[tslot].uid;
+      pl.mz[tslot].tmp = (pl.mz[tslot].tmp || 0) + (eq.c.fx.coreSwap || 800);
+      m.fxUsed = true;
+      ev.push({ e: "equip", p: eq.p, slot: eq.slot, id: eq.c.id, target: { p, slot: tslot } });
+      log(s, ev, "OMEGA CORE jumps to " + nm(s, pl.mz[tslot].uid) + ": +" + (eq.c.fx.coreSwap || 800) + " ATK this turn.");
+      return;
+    }
+    throw new Error("no effect");
+  }
+
   function resolveSpell(s, p, sp, ev) {
     const { uid, target } = sp;
     const c = cardOf(s, uid);
@@ -587,6 +1059,7 @@
       }
       return;
     }
+    if (resolveEd2Spell(s, p, sp, ev, c, tm, target)) return;
     switch (c.id) {
       case "erase": case "crumple": case "stick_squad":
         if (!tm) break;
@@ -657,9 +1130,9 @@
 
   /* ---------- summons ---------- */
   function newMon(s, uid, pos) {
-    return { uid, pos, faceUp: true, mod: 0, dmod: 0, tmp: 0, summonedTurn: s.turn, attacked: 0, posChanged: false, lordUsed: false, kills: 0 };
+    return { uid, pos, faceUp: true, mod: 0, dmod: 0, tmp: 0, summonedTurn: s.turn, attacked: 0, posChanged: false, lordUsed: false, kills: 0, heat: 0, charge: 0, armor: 0, drones: 0, mode: (cardOf(s, uid).fx && cardOf(s, uid).fx.modeSwitch) ? "flight" : null };
   }
-  function onSummon(s, p, slot, ev) {
+  function onSummon(s, p, slot, ev, how) {
     const m = mon(s, p, slot);
     const c = cardOf(s, m.uid);
     const o = 1 - p;
@@ -713,14 +1186,44 @@
       log(s, ev, c.name + " locks on!");
       s.players[o].mz.forEach((x, i) => { if (x && atkOf(s, x) <= c.fx.wipeWeak) destroyMon(s, o, i, ev, "effect"); });
     }
+    if (c.fx && c.fx.peekOnSummon && how === "normal") {
+      const h = s.players[o].hand;
+      if (h.length) {
+        const u = h[Math.floor(rng(s) * h.length)];
+        log(s, ev, c.name + " peeks at " + nm(s, u) + " in {N" + o + "}'s hand.");
+        ev.push({ e: "peek", p, id: cardOf(s, u).id });
+      }
+    }
+    if (c.fx && c.fx.summonArmor) giveArmor(m, c.fx.summonArmor, ev, s);
+    if (c.fx && c.fx.summonLockOn) {
+      let best = -1;
+      s.players[o].mz.forEach((x, i) => { if (x && (best < 0 || atkOf(s, x) > atkOf(s, s.players[o].mz[best]))) best = i; });
+      if (best >= 0) {
+        s.players[o].mz[best].lockOn = true;
+        if (c.fx.delayedLock) m.lockFire = { turn: s.turn + 1, slot: best, atk: c.fx.delayedLock, dmg: c.fx.delayedLock };
+        log(s, ev, c.name + " locks on to " + nm(s, s.players[o].mz[best].uid) + ".");
+      }
+    }
+    if (c.fx && c.fx.modeSwitch && !m.mode) m.mode = "flight";
     if (s.winner != null || !mon(s, p, slot)) return;
-    const opts = trapOptions(s, o, "summon", { m });
-    if (opts.length) s.pending = { type: "trap", on: "summon", player: o, options: opts, summoned: { p, slot } };
+    let opts = trapOptions(s, o, "summon", { m });
+    if (how === "ss" || how === "fusion") opts = opts.concat(trapOptions(s, o, "ss", { m }));
+    if (opts.length) s.pending = { type: "trap", on: (how === "ss" || how === "fusion") ? "ss" : "summon", player: o, options: opts, summoned: { p, slot } };
   }
 
   /* ---------- battle ---------- */
   function declareAttack(s, p, slot, target, ev, fly) {
     const m = mon(s, p, slot);
+    if (target != null) {
+      const d0 = mon(s, 1 - p, target);
+      if (d0 && d0.redirectTo != null && mon(s, 1 - p, d0.redirectTo)) {
+        const hex = mon(s, 1 - p, d0.redirectTo);
+        const hc = cardOf(s, hex.uid);
+        hex.redirectDefTmp = (hc.fx && hc.fx.redirectDef) || 400;
+        log(s, ev, hc.name + " intercepts the attack (+" + hex.redirectDefTmp + " DEF).");
+        target = d0.redirectTo;
+      }
+    }
     m.attacked = (m.attacked || 0) + 1;
     const tgtName = target == null ? (fly ? "directly, flying over everyone" : "directly") : nm(s, mon(s, 1 - p, target).uid);
     log(s, ev, nm(s, m.uid) + " attacks " + tgtName + ".");
@@ -738,7 +1241,16 @@
     const o = 1 - p;
     const aName = nm(s, a.uid);
     const ac = cardOf(s, a.uid);
+    s._battleUid = a.uid;
+    if (ac.fx && ac.fx.heatOnAttack) addHeat(s, a, ac.fx.heatOnAttack, ev);
     let A = atkOf(s, a);
+    if (attached(s, a.uid).some((x) => x.c.fx && x.c.fx.useBestStat)) A = Math.max(A, defOf(s, a));
+    if (a.atkEqDef) A = defOf(s, a);
+    if (target != null && mon(s, 1 - p, target) && mon(s, 1 - p, target).lockOn && attached(s, a.uid).some((x) => x.c.fx && x.c.fx.rifleLock)) {
+      const bonus = attached(s, a.uid).find((x) => x.c.fx && x.c.fx.rifleLock).c.fx.rifleLock;
+      A += bonus;
+      log(s, ev, "RAIL RIFLE boosts the locked shot by " + bonus + " ATK.");
+    }
     if (ac.fx && ac.fx.secondHalf && (a.attacked || 0) >= 2) A = Math.floor(A / 2);
     const clash = { e: "clash", p, slot, target, aId: ac.id, A, dId: null, D: 0, dPos: null,
       aDestroyed: false, dDestroyed: false, dmgTo: null, dmg: 0, saved: false, pierce: false, fly: !!fly };
@@ -793,6 +1305,15 @@
         if (pierces(s, a)) { clash.pierce = true; clash.dmgTo = o; clash.dmg = A - D; }
       } else if (A < D) { clash.dmgTo = p; clash.dmg = D - A; }
     }
+    if (clash.dmg) {
+      const hurt = clash.dmgTo === p ? a : (clash.dmgTo === o ? d : null);
+      if (hurt && cardOf(s, hurt.uid).fx && cardOf(s, hurt.uid).fx.firstHitReduce && !hurt.firstHitUsed) {
+        const red = cardOf(s, hurt.uid).fx.firstHitReduce;
+        clash.dmg = Math.max(0, clash.dmg - red);
+        hurt.firstHitUsed = true;
+        log(s, ev, nm(s, hurt.uid) + " ablates " + red + " of the hit.");
+      }
+    }
     if (clash.dmg && noDmg(clash.dmgTo)) { clash.golem = true; clash.dmg = 0; }
     const bits = [];
     if (clash.dDestroyed) bits.push(dName + " is destroyed");
@@ -817,6 +1338,37 @@
     }
     if (clash.aDestroyed) destroyMon(s, p, slot, ev, "battle", d);
     if (clash.dmg) damage(s, clash.dmgTo, clash.dmg, ev, "battle");
+    const stillA = findMon(s, a.uid);
+    const stillD = target != null ? mon(s, o, target) : null;
+    if (stillA && ac.fx && ac.fx.heatBurn && (stillA.heat || 0) >= (ac.fx.heatBurn[0] || 2)) {
+      const burn = ac.fx.heatBurn[1] || 400;
+      log(s, ev, ac.name + " dumps Heat for " + burn + " damage.");
+      damage(s, o, burn, ev, "effect");
+    }
+    if (stillA && stillD && ac.fx && ac.fx.afterimage) {
+      const drop = ac.atk;
+      stillD.tmp = (stillD.tmp || 0) - drop;
+      ev.push({ e: "debuff", p: o, slot: target, amount: -drop });
+      log(s, ev, ac.name + " leaves an afterimage: " + nm(s, stillD.uid) + " loses " + drop + " ATK this turn.");
+    }
+    if (stillA && stillD && ac.fx && ac.fx.reprise && !stillA.repriseUsed) {
+      stillA.dmod = (stillA.dmod || 0) - (ac.fx.repriseDef || 200);
+      stillA.repriseReady = true;
+      stillA.repriseUsed = true;
+      log(s, ev, ac.name + " sets up a reprise strike (-" + (ac.fx.repriseDef || 200) + " DEF).");
+    }
+    if (stillA && clash.dDestroyed && attached(s, stillA.uid).some((x) => x.c.fx && x.c.fx.afterKillGuard)) {
+      stillA.pos = "def";
+      giveArmor(stillA, 1, ev, s);
+      ev.push({ e: "pos", p, slot });
+      log(s, ev, ac.name + " guards up after the kill.");
+    }
+    if (s._aftershot && s._aftershot.atkP === p && stillD) {
+      log(s, ev, "RAIL TRAP aftershot: {P" + p + ":takes|take} " + s._aftershot.amt + ".");
+      damage(s, p, s._aftershot.amt, ev, "effect");
+      s._aftershot = null;
+    }
+    s._battleUid = null;
   }
   function D_safe(clash) { return clash.D; }
 
@@ -859,6 +1411,45 @@
           damage(s, attacker, back, ev, "reflect");
           return;
         }
+        if (c.fx && c.fx.heatShock && a) {
+          const had = (a.heat || 0) > 0;
+          addHeat(s, a, 1, ev);
+          log(s, ev, "STATIC SHOCK dumps Heat into " + nm(s, a.uid) + ".");
+          if (had) {
+            log(s, ev, "It already had Heat — the Battle Phase ends.");
+            ev.push({ e: "negated", p: attacker, slot: pend.attacker, target: pend.target, id: c.id });
+            endTurn(s, ev);
+            return;
+          }
+        }
+        if (c.fx && c.fx.atkEqualsDef && a) {
+          a.atkEqDef = true;
+          log(s, ev, "FORCE DAMPENER: " + nm(s, a.uid) + " battles with its DEF.");
+        }
+        if (c.fx && c.fx.redirectDmg) {
+          s._redirectBattleFrom = p;
+          s._redirectBattleTo = attacker;
+          if (c.fx.addHeat && a) addHeat(s, a, c.fx.addHeat, ev);
+          log(s, ev, "REFLECT ARRAY will bounce battle damage this attack.");
+        }
+        if (c.fx && c.fx.aftershot) {
+          s._aftershot = { atkP: attacker, amt: c.fx.aftershot };
+          log(s, ev, "RAIL TRAP arms an aftershot.");
+        }
+        if (c.fx && c.fx.zeroDmgSacrifice) {
+          const i = pl.mz.findIndex((m) => m && cardOf(s, m.uid).type === "MACHINE");
+          if (i >= 0) {
+            const left = leaveField(s, p, i, ev);
+            sendToGrave(s, left.uid);
+            ev.push({ e: "destroy", p, zone: "mz", slot: i, id: cardOf(s, left.uid).id });
+            log(s, ev, "ABORT sends " + nm(s, left.uid) + " to the GY.");
+          }
+          s._abortSacrifice = { p };
+        }
+        if (c.fx && c.fx.giveArmor && pend.target != null) {
+          const defn = mon(s, p, pend.target);
+          if (defn) giveArmor(defn, c.fx.giveArmor, ev, s);
+        }
         if (c.id === "smudge" || (c.fx && c.fx.tmpAtk)) {
           const amt = (c.fx && c.fx.tmpAtk) || -300;
           log(s, ev, "{P" + p + ":springs|spring} " + c.name + ": the attacker changes ATK by " + amt + " this turn.");
@@ -868,12 +1459,16 @@
       resolveBattle(s, attacker, pend.attacker, pend.target, ev, pend.fly);
       return;
     }
-    if (pend.on === "summon") {
+    if (pend.on === "summon" || pend.on === "ss") {
       if (slot != null) {
         const c = springTrap(s, p, slot, ev);
         const m = mon(s, pend.summoned.p, pend.summoned.slot);
         ev.push({ e: "trapfx", p, id: c.id, target: pend.summoned });
-        if (m) {
+        if (m && c.fx && c.fx.pinDefense) {
+          m.pos = "def"; m.posChanged = true;
+          ev.push({ e: "pos", p: pend.summoned.p, slot: pend.summoned.slot });
+          log(s, ev, "TRIP MINE pins " + nm(s, m.uid) + " in Defense — it cannot change position this turn.");
+        } else if (m) {
           const amt = (c.fx && c.fx.stain) || 700;
           m.mod = (m.mod || 0) - amt;
           ev.push({ e: "debuff", p: pend.summoned.p, slot: pend.summoned.slot, amount: -amt });
@@ -886,6 +1481,12 @@
       const sp = pend.spell;
       if (slot != null) {
         const c = springTrap(s, p, slot, ev);
+        if (c.fx && c.fx.jamSpells) {
+          s.players[other].jamSpells = true;
+          log(s, ev, "NO SIGNAL jams further spells this turn — " + nm(s, sp.uid) + " still resolves.");
+          resolveSpell(s, other, sp, ev);
+          return;
+        }
         const pay = (c.fx && c.fx.pay) || (c.id === "nope" ? 300 : 0);
         if (pay) { log(s, ev, "{P" + p + ":pays|pay} " + pay + " LP: " + c.name + " cancels " + nm(s, sp.uid) + "."); damage(s, p, pay, ev, "cost"); }
         else log(s, ev, c.name + " cancels " + nm(s, sp.uid) + ".");
@@ -945,7 +1546,7 @@
         const need = tributesNeeded(c, s, p);
         const trib = (act.tributes || []).filter((x, i, arr) => arr.indexOf(x) === i);
         if (trib.length !== need) throw new Error("need " + need + " tribute" + (need > 1 ? "s" : ""));
-        trib.forEach((slot) => { if (!pl.mz[slot]) throw new Error("bad tribute"); });
+        trib.forEach((slot) => { if (!pl.mz[slot] || pl.mz[slot].stasis) throw new Error("bad tribute"); });
         trib.forEach((slot) => {
           const m = pl.mz[slot];
           log(s, ev, nm(s, m.uid) + " is tributed.");
@@ -963,21 +1564,36 @@
         log(s, ev, "{P" + p + ":summons|summon} " + c.name + (atkMode ? " in attack mode." : " in defense mode.") + (trib.length ? " (tribute summon)" : ""));
         const left = summonsLeft(pl);
         log(s, ev, left ? "{P" + p + ":can|can} normal summon " + left + " more monster" + (left === 1 ? "" : "s") + " this turn." : "No normal summons left this turn.");
-        onSummon(s, p, slot, ev);
+        onSummon(s, p, slot, ev, act.a === "summon" ? "normal" : "set");
         break;
       }
       case "ss": {
         if ((L.hand[act.uid] || []).indexOf("ss") === -1) throw new Error("cannot special summon");
+        const sc = cardOf(s, act.uid);
+        if (sc.fx && sc.fx.ssBounceType) {
+          const cand = pl.mz.map((m, i) => (m && cardOf(s, m.uid).type === sc.fx.ssBounceType ? i : -1)).filter((i) => i >= 0);
+          let bs = act.bounce != null ? act.bounce : cand[0];
+          if (cand.indexOf(bs) === -1) throw new Error("return a " + sc.fx.ssBounceType);
+          const bm = leaveField(s, p, bs, ev);
+          bounceToOwner(s, bm, ev);
+          ev.push({ e: "bounce", p, slot: bs, id: cardOf(s, bm.uid).id });
+          log(s, ev, "SKY RANGER hot-swaps: " + nm(s, bm.uid) + " returns to hand.");
+        }
         const slot = freeSlot(pl.mz);
         if (slot === -1) throw new Error("no room");
         pl.hand.splice(pl.hand.indexOf(act.uid), 1);
         pl.mz[slot] = newMon(s, act.uid, "atk");
-        ev.push({ e: "summon", p, slot, pos: "atk", special: true, id: cardOf(s, act.uid).id });
+        ev.push({ e: "summon", p, slot, pos: "atk", special: true, id: sc.id });
         log(s, ev, "{P" + p + ":special summons|special summon} " + nm(s, act.uid) + ".");
-        onSummon(s, p, slot, ev);
+        if (sc.fx && sc.fx.ssGiveCharge) {
+          const mine = pickMyMachine(s, p, null);
+          if (mine && mine.m.uid !== act.uid) giveCharge(mine.m, sc.fx.ssGiveCharge, ev, s);
+        }
+        onSummon(s, p, slot, ev, "ss");
         break;
       }
       case "activate": {
+        if (pl.jamSpells) throw new Error("No Signal is jamming further spells this turn");
         const fromHand = act.uid != null;
         let uid;
         if (fromHand) {
@@ -1006,6 +1622,7 @@
       case "pos": {
         if ((L.mz[act.slot] || []).indexOf("pos") === -1) throw new Error("cannot change");
         const m = pl.mz[act.slot];
+        if (m.stasis) throw new Error("stasis lock");
         m.posChanged = true;
         m.pos = m.pos === "atk" ? "def" : "atk";
         log(s, ev, nm(s, m.uid) + " switches to " + (m.pos === "atk" ? "attack" : "defense") + " mode.");
@@ -1034,6 +1651,8 @@
           m.guardUsed = true;
           ev.push({ e: "effect", p, slot: act.slot, target: tslot });
           log(s, ev, ec.name + " shields " + nm(s, pl.mz[tslot].uid) + " this turn.");
+        } else {
+          applyEd2Effect(s, p, act, ev);
         }
         break;
       }
@@ -1041,7 +1660,10 @@
         if (!L.phase) throw new Error("cannot change phase");
         if (s.phase === "main") {
           if (s.turn === 1) { log(s, ev, "No battle on the first turn."); endTurn(s, ev); }
-          else { s.phase = "battle"; ev.push({ e: "phase", phase: "battle" }); }
+          else if (pl.noBattle) { log(s, ev, "Singularity collapsed the Battle Phase."); endTurn(s, ev); }
+          else { s.phase = "battle"; ev.push({ e: "phase", phase: "battle" });
+            // scope-drone lock-on debuff also fires at start of BP if not already at standby
+          }
         } else if (s.phase === "battle") endTurn(s, ev);
         break;
       }
@@ -1054,7 +1676,10 @@
         if ((L.mz[act.slot] || []).indexOf("attack") === -1) throw new Error("cannot attack");
         let fly = false;
         if (act.target == null) {
-          if (L.attackDirect) { if (cardOf(s, mon(s, p, act.slot).uid).id === "robo_ruler") throw new Error("ROBO RULER cannot attack directly"); }
+          if (L.attackDirect) {
+            const am = mon(s, p, act.slot);
+            if (cardOf(s, am.uid).id === "robo_ruler" || am.noDirect) throw new Error("cannot attack directly");
+          }
           else if (L.fly[act.slot]) fly = true;
           else throw new Error("must target a monster");
         } else if ((L.atkTargets[act.slot] || []).indexOf(act.target) === -1) throw new Error(attackTargets(s, p).length && countMon(s, 1 - p) ? "a TAUNT monster must be attacked first" : "no target");
@@ -1140,6 +1765,8 @@
             atk: atkOf(s, m), def: defOf(s, m), mod: atkOf(s, m) - c.atk,
             eq: attached(s, m.uid).map((x) => ({ id: x.c.id, p: x.p, slot: x.slot })),
             pierce: pierces(s, m), blocked: blocked(s, m), ghostUsed: !!s.cards[m.uid].ghostUsed,
+            heat: m.heat || 0, charge: m.charge || 0, armor: m.armor || 0, drones: m.drones || 0,
+            mode: m.mode || null, lockOn: !!m.lockOn, cloaked: !!m.cloaked, docked: !!m.docked, stasis: !!m.stasis,
           });
           return o;
         }),

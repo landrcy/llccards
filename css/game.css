@@ -948,7 +948,9 @@ html, body { height: 100%; overflow: hidden; }
 .llc-card.is-back .face.front { box-shadow: none; animation: none; }
 /* small board cards: keep the glow tight so the board stays tidy */
 .zone .llc-card .face.front, .hcard .llc-card .face.front { animation-duration: 3.4s; }
-/* Secret Rare art animation: 4 stepped pixel frames over the art window (and full-bleed for full-art). */
+/* Secret Rare art animation: 4 stepped frames of the ART ONLY.
+   Chrome (name, stars, text box, ATK/DEF, frame) is transparent on the sheet
+   so the static print stays readable underneath. */
 .llc-card.rar-SCR .scr-anim {
   position: absolute; inset: 0; z-index: 2; pointer-events: none;
   background-repeat: no-repeat;

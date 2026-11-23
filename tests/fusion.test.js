@@ -158,7 +158,7 @@ E.apply(s, 0, { a: "activate", uid: rec, target: { p: 0, slot: swSlot } });
 check("bounce to hangar", s.players[0].hangar.length === 1 && s.cards[s.players[0].hangar[0]].id === "storm_wing");
 check("not in hand", !s.players[0].hand.some((u) => s.cards[u].id === "storm_wing"));
 
-// signal pilot draws when used as material
+// signal pilot gives the fusion 1 Charge when used as material
 function setupSignal() {
   for (let seed = 1; seed < 300; seed++) {
     const g = mk([
@@ -191,21 +191,21 @@ E.admin(s, { cmd: "spawn", id: "wing_frame", p: 0 });
 E.admin(s, { cmd: "spawn", id: "mech_link", p: 0, toHand: true });
 const handBefore = s.players[0].hand.length;
 E.apply(s, 0, { a: "activate", uid: uidOf(s, 0, "mech_link"), fusion: "storm_wing" });
-check("signal pilot material draw", s.players[0].hand.length === handBefore); // spent link (-1) + draw (+1) = same, and storm on field
-// actually: hand had +mech_link, we spend it (-1), draw (+1) => same as after spawn? spawn toHand added 1, then activate removes it, draw adds 1. So hand = before activate (which included link) -1 +1 = before activate.
-// handBefore was measured after spawn, includes mech_link. After: -link +draw = same length. Good if draw happened.
-check("storm after signal", s.players[0].mz.some((m) => m && s.cards[m.uid].id === "storm_wing"));
+const storm = s.players[0].mz.find((m) => m && s.cards[m.uid].id === "storm_wing");
+check("signal pilot material charge", storm && (storm.charge || 0) >= 1);
+check("storm after signal", !!storm);
 
-// haste: wing frame can attack the turn it is played (not turn 1)
+// wing frame no longer has haste: it cannot attack the turn it is summoned
 s = mk(base, [], 11, 0).state;
 E.apply(s, 0, { a: "endturn" });
 passTo(s, 0);
 E.admin(s, { cmd: "clear", p: 0 });
-E.admin(s, { cmd: "spawn", id: "wing_frame", p: 0 });
+E.admin(s, { cmd: "spawn", id: "wing_frame", p: 0, toHand: true });
+summon(s, 0, "wing_frame");
 E.apply(s, 0, { a: "phase" });
 const wf = s.players[0].mz.findIndex((m) => m && s.cards[m.uid].id === "wing_frame");
 const Lb = E.legal(s, 0);
-check("wing frame haste attack", wf >= 0 && Lb.atkTargets && Lb.atkTargets[wf] != null);
+check("wing frame no haste", wf >= 0 && (Lb.mz[wf] || []).indexOf("attack") === -1);
 
 // fusions cannot be normal summoned / pulled by second draft (stars 6+)
 check("storm stars exclude revive", E.deckProblems);

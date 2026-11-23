@@ -50,7 +50,7 @@
         const pick = (id) => ids.find((x) => x.id === id);
         const pass = { a: "respond", slot: null };
         if (cfg.missTrap && Math.random() < cfg.missTrap) return pass;
-        if (pd.on === "summon") { const t = pick("pitfall_doodle") || pick("trip_mine"); return t ? { a: "respond", slot: t.slot } : pass; }
+        if (pd.on === "summon" || pd.on === "ss") { const t = pick("pitfall_doodle") || pick("trip_mine"); return t ? { a: "respond", slot: t.slot } : pass; }
         if (pd.on === "spell") {
           const sid = pd.spell && pd.spell.id;
           const harmful = REMOVAL.indexOf(sid) !== -1 || ["masterpiece", "cursed_crown", "paper_cut", "second_draft"].indexOf(sid) !== -1 ||
@@ -132,7 +132,7 @@
         if (m.atk >= 900 || m.atk >= myBest || id === "crumple") return cast(x, ts[0]);
       }
       /* 2. the big eraser when behind on board */
-      const be = find("big_eraser");
+      const be = find("big_eraser") || find("singularity");
       if (be) {
         const mine = myMons.reduce((t, m) => t + threat(m), 0), theirs = oppMons.reduce((t, m) => t + threat(m), 0);
         if (theirs > mine + 1800 && P.lp > 1600) return cast(be);
