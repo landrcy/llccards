@@ -100,7 +100,12 @@
   function wake() { if (!raf && !reduced()) raf = requestAnimationFrame(tick); }
   function startIdle() { wake(); }
 
+  /* Edition One full-art cards whose original print has no baked star pill.
+     Overlay a compact right-hugging badge; never stamp a second badge over a baked pill, and never repaint Landry's art. */
+  const STAR_OVERLAY = { masterpiece: 1, mirror_sheet: 1, cursed_crown: 1, big_eraser: 1 };
+
   function createCard(card, opts) {
+
     opts = opts || {};
     const rar = card.rarity || "C";
     const foil = !!opts.foil || rar !== "C";
@@ -117,6 +122,7 @@
         '<div class="face front">' +
           '<img class="print" src="assets/cards/' + card.id + '.png?v=' + v + '" alt="' + alt + '" draggable="false">' +
           ((rar === "SCR" && card.set === "edition_two") ? "<div class=\"scr-anim\" style=\"--scr-sheet:url(assets/anim/" + card.id + ".png?v=" + v + ")\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i></div>" : "") +
+          (STAR_OVERLAY[card.id] ? "<div class=\"star-overlay\" style=\"background-image:url(assets/overlays/" + card.id + ".png?v=" + v + ")\" aria-hidden=\"true\"></div>" : "") +
           '<div class="foil" aria-hidden="true"></div>' +
           '<div class="glare" aria-hidden="true"></div>' +
           '<div class="foil-sweep" aria-hidden="true"></div>' +

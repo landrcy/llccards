@@ -980,6 +980,21 @@ html, body { height: 100%; overflow: hidden; }
 }
 
 
+/* Non-destructive star badge: covers the header corner at card scale, art PNG is untouched. */
+.llc-card .star-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+
+
 
 /* ================= shop: ink + rates + SR pack ================= */
 .ink-line { text-align: center; font-size: 20px; margin: 6px 0 0; display: flex; gap: 8px; justify-content: center; align-items: baseline; flex-wrap: wrap; }
