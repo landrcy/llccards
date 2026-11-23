@@ -36,6 +36,19 @@
       : (want ? "\"" + want.name + "\" IS NOT VALID, USING THE AUTO DECK  ·  " : "AUTO DECK: 20 CARDS  ·  ") + owned + " / " + total + " CARDS OWNED" +
         (want ? "" : d.owned < 20 ? "  ·  COMMON STARTERS FILL THE GAPS" : "  ·  YOUR BEST CARDS ARE IN");
     setWaiting(false);
+    renderBotDiff();
+  }
+  function renderBotDiff() {
+    const row = $("bot-diff-row");
+    if (!row) return;
+    const cur = LLCStorage.botDiff();
+    row.querySelectorAll("[data-diff]").forEach((b) => {
+      const id = b.dataset.diff;
+      const cfg = LLCAI.cfgOf(id);
+      b.classList.toggle("on", id === cur);
+      const sub = b.querySelector("span");
+      if (sub) sub.textContent = "+" + cfg.winInk + " INK";
+    });
   }
   function setWaiting(on, title, sub) {
     $("arena-modes").hidden = !!on;
@@ -54,7 +67,7 @@
     $("arena-wait").classList.add("error");
   }
 
-  const PROTO = 4;   // bump when rules or sync change, so mismatched builds never play each other
+  const PROTO = 5;   // bump when rules or sync change, so mismatched builds never play each other
   const hello = () => { const d = myDeck(); return { v: PROTO, name: myName, deck: d.cards, hangar: d.hangar || [] }; };
   const netHandlers = {
     onStatus: (t) => { $("wait-sub").textContent = t; },
@@ -68,6 +81,12 @@
     onMatch: (m) => startOnline(m),
   };
 
+  $("bot-diff-row").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-diff]");
+    if (!b) return;
+    LLCStorage.setBotDiff(b.dataset.diff);
+    renderBotDiff();
+  });
   $("btn-vs-bot").addEventListener("click", () => startBot());
   $("btn-quick").addEventListener("click", () => {
     setWaiting(true, "QUICK MATCH", "Connecting…");
@@ -101,7 +120,8 @@
   /* ================= controllers ================= */
   function botController() {
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    const bot = E.botDeck(seed ^ 0x5bd1e995);
+    const diff = LLCStorage.botDiff();
+    const bot = E.botDeck(seed ^ 0x5bd1e995, diff);
     const mine = myDeck();
     const { state: s, events } = E.create({ seed, decks: [mine.cards, bot.cards], hangars: [mine.hangar || [], bot.hangar || []], names: ["YOU", "BOT"] });
     let timer = null, alive = true;
@@ -115,7 +135,7 @@
         if (!alive || s.winner != null) return;
         if ((s.pending ? s.pending.player : s.active) !== 1) return;
         const bm = (LLCStorage.flags() || {}).bot;      // admin: "easy" = bot skips half its attacks, "skip" = bot passes its turns
-        let a = LLCAI.decide(E.view(s, 1));
+        let a = LLCAI.decide(E.view(s, 1), { diff });
         if (bm === "skip" && !s.pending) a = { a: "endturn" };
         else if (bm === "easy" && a && a.a === "attack" && Math.random() < 0.5) a = { a: "phase" };
         let ev;
@@ -131,6 +151,7 @@
     const a0 = () => ui.autoplay;
     return {
       mode: "bot",
+      diff,
       start() { push(events); tick(); },
       act(a) {
         if (!alive) return;
@@ -235,11 +256,20 @@
     $("log-list").innerHTML = ""; $("log-list").dataset.key = "";
     ui.pinned = null; ui.lastSeen = null; ui.atkFrom = null; ui.anchorKey = null; hidePop();
     fillDetail(null, null, "", null);
+    showBotDiffTag(false);
+  }
+  function showBotDiffTag(on, diff) {
+    const tag = $("bot-diff-tag");
+    if (!tag) return;
+    if (!on) { tag.hidden = true; tag.textContent = ""; return; }
+    tag.hidden = false;
+    tag.textContent = LLCAI.cfgOf(diff).label;
   }
   function startBot() {
     if (ui.ctl) ui.ctl.leave();
     resetBoardUi();
     $("opp-name").textContent = "BOT";
+    showBotDiffTag(true, LLCStorage.botDiff());
     $("btn-rematch").hidden = false;
     ui.ctl = botController();
     LLC.show("duel");
@@ -256,6 +286,7 @@
     if (ui.ctl) ui.ctl.leave();
     resetBoardUi();
     $("opp-name").textContent = String((m.hello && m.hello.name) || "RIVAL").slice(0, 14);
+    showBotDiffTag(false);
     $("btn-rematch").hidden = true;
     LLCAudio.play("match");
     ui.ctl = m.role === "host" ? hostController(m.conn, m.hello) : guestController(m.conn);
@@ -546,6 +577,8 @@
     const isTarget = (p, slot, kind) => sel && sel.targets.some((t) => t.p === p && t.slot === slot && (t.kind || "mz") === kind);
 
     $("opp-name").textContent = O.name;
+    if (ui.ctl && ui.ctl.mode === "bot") showBotDiffTag(true, ui.ctl.diff);
+    else showBotDiffTag(false);
     renderField(V);
     renderHangar(V);
     $("phases").querySelectorAll("span").forEach((s) => s.classList.toggle("on", s.dataset.ph === V.phase));
@@ -1193,19 +1226,25 @@
     if (opts.includes("activate")) btns.push({ label: "CAST", fn: () => doCast({ uid: c.uid }, c.id) });
     if (opts.includes("setst")) btns.push({ label: "SET FACE-DOWN", fn: () => { closeSheet(); ui.ctl.act({ a: "setst", uid: c.uid }); } });
     let info = "";
-    const usedUp = card.kind === "monster" && V.active === V.me && V.phase === "main" && !V.pending && V.players[V.me].summoned;
+    const cap = E.NORMAL_SUMMONS_PER_TURN;
+    const used = (V.players[V.me].summons || 0);
+    const left = Math.max(0, cap - used);
+    const usedUp = card.kind === "monster" && V.active === V.me && V.phase === "main" && !V.pending && used >= cap;
     if (usedUp) {
-      // one normal summon per turn (attack OR defense, tribute summons included): show the buttons greyed out
-      const t = "Already summoned this turn";
+      // two normal summons per turn (attack OR defense, tribute summons included): grey the buttons after the second
+      const t = "No normal summons left this turn";
       btns.push({ label: "SUMMON IN ATTACK", disabled: true, title: t, fn: () => {} });
       btns.push({ label: "SUMMON IN DEFENSE", disabled: true, title: t, fn: () => {} });
-      info = "Already summoned this turn. You get 1 summon per turn.";
+      info = "No normal summons left this turn.";
     } else if (!btns.length && V.active === V.me && V.phase === "main" && !V.pending) {
-      if (card.kind === "monster" && V.players[V.me].summoned) info = "Already summoned this turn.";
+      if (card.kind === "monster" && used >= cap) info = "No normal summons left this turn.";
       else if (card.kind === "monster" && trib) info = "Needs " + trib + " of your monsters to tribute.";
       else if (card.kind === "trap") info = "No room to set it.";
     } else if (!btns.length && V.active !== V.me) info = "Wait for your turn to play it.";
     else if (!btns.length && V.phase === "battle") info = "Cards are played in your MAIN phase.";
+    if (!info && btns.length && card.kind === "monster" && used > 0 && left > 0) {
+      info = "You can normal summon " + left + " more monster" + (left === 1 ? "" : "s") + " this turn.";
+    }
     btns.push({ label: "CLOSE", fn: closeSheet });
     openSheet(c, info, btns);
   }
@@ -1404,7 +1443,7 @@
     let reward = 0;
     if (!ui.awarded && ui.ctl) {
       ui.awarded = true;
-      reward = win ? (ui.ctl.mode === "online" ? 150 : 100) : 25;
+      reward = LLCAI.inkReward(win, ui.ctl.mode, ui.ctl.diff);
       if (ui.ctl.mode === "online" && reason === "Your rival left the match.") reward = 150;
       LLCStorage.addInk(reward);
     }

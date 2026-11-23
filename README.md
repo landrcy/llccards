@@ -2,11 +2,11 @@
 
 A minimalist black-and-white browser TCG. The only color is the foil sheen on rare pulls.
 
-Playable: title, map, shop, Edition One pack opening, a 10-slot binder, and the arena (duel a bot, quick match online, or a 4-letter room code for a friend).
+Playable: title, map, shop, Edition One and Edition Two packs, a binder, and the arena (duel a bot on Easy, Normal or Hard, quick match online, or a 4-letter room code for a friend).
 
 ## Duels
 
-Yu-Gi-Oh-style, 4000 LP each, 20-card deck built from your binder (3 copies of each monster/spell you own, max 2 of each trap; starters fill the rest). Phases: draw, main, battle, end. One normal summon per turn, in attack or defense mode. **Monsters are always face-up**: "set" means face-up defense mode (card turned sideways, DEF shown). Only spells and traps are set face-down. 5-star monsters need 1 tribute. Monsters can't attack the turn they're played (except Stick Runner) and nobody attacks on turn 1.
+Yu-Gi-Oh-style, 4000 LP each, 20-card deck built from your binder (3 copies of each monster/spell you own, max 2 of each trap; starters fill the rest). Phases: draw, main, battle, end. Two normal summons per turn, in attack or defense mode (tribute summons count, special summons do not). Edition Two fusions live in a 2-card Hangar: from turn 2, MECH LINK sends the listed materials you control and special summons the fusion (once per turn, not a normal summon). **Monsters are always face-up**: "set" means face-up defense mode (card turned sideways, DEF shown). Only spells and traps are set face-down. 5-star monsters need 1 tribute. Monsters can't attack the turn they're played (except Stick Runner) and nobody attacks on turn 1.
 
 Traps fire on the opponent's attack, **at most one trap per player per turn**. SMUDGE (2★): the attacker loses 300 ATK this turn. WHOOPS! (4★, rarer): pay 300 LP to stop an attack by a monster with 1500+ ATK.
 

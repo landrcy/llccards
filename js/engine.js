@@ -10,6 +10,11 @@
   const DECK_SIZE = 20;
   const FATIGUE = 500;            // no card to draw: lose 500 LP instead of an instant loss
   const MAX_TRAP_COPIES = 2;
+  const NORMAL_SUMMONS_PER_TURN = 2;   // shared by the engine, UI and bot; tribute summons count, special summons do not
+
+  function summonsUsed(pl) { return pl.summons || 0; }
+  function canNormalSummon(pl) { return summonsUsed(pl) < NORMAL_SUMMONS_PER_TURN; }
+  function summonsLeft(pl) { return Math.max(0, NORMAL_SUMMONS_PER_TURN - summonsUsed(pl)); }
 
   function rng(state) {
     let a = (state.rng = (state.rng + 0x6d2b79f5) | 0);
@@ -55,7 +60,7 @@
         name: String((opts.names && opts.names[p]) || (p ? "Opponent" : "You")).slice(0, 16),
         lp: START_LP, deck: shuffle(s, uids), hand: [], grave: [], hangar,
         mz: new Array(ZONES).fill(null), sz: new Array(ZONES).fill(null),
-        summoned: false, fused: false, trapTurn: -1, dummyUsed: false, fatigue: 0,
+        summons: 0, fused: false, trapTurn: -1, dummyUsed: false, fatigue: 0,
       });
     });
     s.first = opts.first != null ? opts.first : (rng(s) < 0.5 ? 0 : 1);
@@ -286,7 +291,7 @@
     s.turn += 1;
     const p = s.active;
     const pl = s.players[p];
-    pl.summoned = false;
+    pl.summons = 0;
     pl.fused = false;
     s.players.forEach((q) => q.mz.forEach((m) => { if (m) { m.attacked = 0; m.posChanged = false; m.lordUsed = false; m.guardUsed = false; m.protected = false; m.extraReady = false; } }));
     s.phase = "draw";
@@ -447,7 +452,7 @@
           if (!isFusion(c)) {
             const need = tributesNeeded(c, s, p);
             const room = freeSlot(pl.mz) !== -1 || need > 0;
-            if (!pl.summoned && countMon(s, p) >= need && room) opts.push("summon", "set");
+            if (canNormalSummon(pl) && countMon(s, p) >= need && room) opts.push("summon", "set");
             if (c.fx && c.fx.ssIfType && countType(s, p, c.fx.ssIfType) > 0 && freeSlot(pl.mz) !== -1) opts.push("ss");
           }
         } else {
@@ -934,7 +939,7 @@
       case "summon":
       case "set": {
         const opts = L.hand[act.uid] || [];
-        if (pl.summoned) throw new Error("Already summoned this turn");     // ONE normal summon per turn: attack, defense or tribute
+        if (!canNormalSummon(pl)) throw new Error("No normal summons left this turn");
         if (opts.indexOf(act.a) === -1) throw new Error("cannot summon");
         const c = cardOf(s, act.uid);
         const need = tributesNeeded(c, s, p);
@@ -953,10 +958,11 @@
         pl.hand.splice(pl.hand.indexOf(act.uid), 1);
         const atkMode = act.a === "summon";
         pl.mz[slot] = newMon(s, act.uid, atkMode ? "atk" : "def");
-        pl.summoned = true;
+        pl.summons = summonsUsed(pl) + 1;
         ev.push({ e: "summon", p, slot, pos: atkMode ? "atk" : "def", id: c.id });
         log(s, ev, "{P" + p + ":summons|summon} " + c.name + (atkMode ? " in attack mode." : " in defense mode.") + (trib.length ? " (tribute summon)" : ""));
-        log(s, ev, "({O" + p + "} 1 summon for this turn is used)");
+        const left = summonsLeft(pl);
+        log(s, ev, left ? "{P" + p + ":can|can} normal summon " + left + " more monster" + (left === 1 ? "" : "s") + " this turn." : "No normal summons left this turn.");
         onSummon(s, p, slot, ev);
         break;
       }
@@ -1124,7 +1130,7 @@
         name: q.name, lp: q.lp, deck: q.deck.length, fatigue: q.fatigue,
         grave: q.grave.map(pub),
         hand: i === p ? q.hand.map(pub) : q.hand.map(() => ({ hidden: true })),
-        summoned: q.summoned, fused: !!q.fused, dummyUsed: !!q.dummyUsed, trapUsed: q.trapTurn === s.turn,
+        summons: summonsUsed(q), fused: !!q.fused, dummyUsed: !!q.dummyUsed, trapUsed: q.trapTurn === s.turn,
         hangar: (q.hangar || []).map(pub),
         mz: q.mz.map((m) => {
           if (!m) return null;
@@ -1215,14 +1221,25 @@
     for (const c of starters.concat(sorted)) { while (out.length < DECK_SIZE && n(c.id) < copyCap(c)) add(c, false); }
     return { cards: out.slice(0, DECK_SIZE), hangar, owned: ownedAll.length };
   }
-  /* The bot's deck: all commons plus a handful of random rares (and rarely a super rare). */
-  function botDeck(seed) {
+  /* The bot's deck. Easy leans on commons, Normal is the original mix, Hard is weighted to higher rarities. */
+  const BOT_OWN_RATES = {
+    easy:   { C: 0.95, R: 0.10, SR: 0,    SCR: 0 },
+    normal: { C: 0.75, R: 0.35, SR: 0.08, SCR: 0 },
+    hard:   { C: 0.55, R: 0.80, SR: 0.55, SCR: 0.22 },
+  };
+  function botDeck(seed, diff) {
+    const id = BOT_OWN_RATES[diff] ? diff : "normal";
+    const rates = BOT_OWN_RATES[id];
     const r = global.LLCData.mulberry32(seed >>> 0 || 7);
     const CARDS = global.LLCData.CARDS;
     const coll = { edition_one: {}, edition_two: {} };
     CARDS.forEach((c) => {
-      let ch = c.rarity === "C" ? 0.75 : c.rarity === "R" ? 0.35 : c.rarity === "SR" ? 0.08 : 0;
-      if (isFusion(c)) ch = c.rarity === "SCR" ? 0.15 : 0.25;
+      let ch = rates[c.rarity] || 0;
+      if (isFusion(c)) {
+        if (id === "easy") ch = c.rarity === "SCR" ? 0.02 : 0.08;
+        else if (id === "hard") ch = c.rarity === "SCR" ? 0.35 : 0.55;
+        else ch = c.rarity === "SCR" ? 0.15 : 0.25;
+      }
       if (r() < ch) {
         const bucket = c.set === "edition_two" ? "edition_two" : "edition_one";
         coll[bucket][c.id] = { owned: true, foil: false, n: 1 };
@@ -1289,7 +1306,7 @@
   }
 
   global.LLCEngine = {
-    START_LP, ZONES, DECK_SIZE, HAND_LIMIT, FATIGUE,
+    START_LP, ZONES, DECK_SIZE, HAND_LIMIT, FATIGUE, NORMAL_SUMMONS_PER_TURN,
     create, apply, view, legal, admin, deckFromCollection, botDeck, validDeck, deckProblems, activeDeck, tributesNeeded, copyCap, cardValue,
     legalFusions, isFusion, ownedRec,
     _atkOf: atkOf, _defOf: defOf, _mon: mon,

@@ -10,8 +10,8 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=15">
-  <link rel="stylesheet" href="css/duel.css?v=15">
+  <link rel="stylesheet" href="css/game.css?v=16">
+  <link rel="stylesheet" href="css/duel.css?v=17">
 </head>
 <body>
   
@@ -67,7 +67,7 @@
       </div>
       <p class="ink-line">
         <span class="ink-amt"><span class="ink-drop" aria-hidden="true"></span>INK: <b id="ink-count">0</b></span>
-        <span class="ink-how">win duels to earn more (bot win +100, loss +25, online win +150)</span>
+        <span class="ink-how">win duels to earn more (easy bot +60, normal +100, hard +150, loss +25, online win +150)</span>
       </p>
     </header>
     <div class="shop-body">
@@ -195,6 +195,14 @@
       <p class="deck-line" id="deck-line"></p>
       <button type="button" class="deck-btn" id="btn-arena-decks">EDIT DECKS</button>
       <div class="arena-modes" id="arena-modes">
+        <div class="bot-diff-pick" id="bot-diff-pick">
+          <p class="bot-diff-label">BOT DIFFICULTY</p>
+          <div class="bot-diff-row" id="bot-diff-row">
+            <button type="button" data-diff="easy">EASY<span>+60 INK</span></button>
+            <button type="button" data-diff="normal" class="on">NORMAL<span>+100 INK</span></button>
+            <button type="button" data-diff="hard">HARD<span>+150 INK</span></button>
+          </div>
+        </div>
         <button type="button" class="big" id="btn-vs-bot">VS BOT</button>
         <button type="button" class="big" id="btn-quick">QUICK MATCH</button>
         <button type="button" class="big" id="btn-host">MAKE ROOM</button>
@@ -218,7 +226,8 @@
         <ul>
           <li>Both players start with 4000 LP. Hit 0 and you lose. No cards left to draw? You lose 500 LP each time instead.</li>
           <li>Each turn: DRAW, MAIN, BATTLE, END. The first player skips the first draw and cannot attack turn 1.</li>
-          <li>MAIN: play 1 monster per turn, face-up in ATTACK or DEFENSE mode (no face-down monsters). 5-6 star monsters need 1 tribute, 7+ stars need 2. Cast spells, or set spells and traps face-down.</li>
+          <li>MAIN: play up to 2 monsters per turn, face-up in ATTACK or DEFENSE mode (no face-down monsters). Tribute summons count as those 2; special summons (including ACE PILOT and MECH LINK fusions) do not. 5-6 star monsters need 1 tribute, 7+ stars need 2. Cast spells, or set spells and traps face-down.</li>
+          <li>EDITION TWO: keep up to 2 fusion mechs in your Hangar. From turn 2, once per turn, cast MECH LINK and send the listed monsters you control to special summon one.</li>
           <li>EQUIPS and CURSES stay face-up in your spell/trap row, stuck to a monster. If that monster leaves, they go too.</li>
           <li>FIELD spells sit in the middle and change stats for BOTH players. A new field replaces the old one.</li>
           <li>COMBO cards need the right monsters on your side. COUNTER traps cancel a spell as it is cast.</li>
@@ -254,7 +263,7 @@
         <div class="zone-row" id="opp-sz"></div>
         <div class="zone-row mz-row" id="opp-mz"></div>
         <div class="mid sketch-box" id="duel-mid">
-          <div class="lp opp-lp"><span class="who" id="opp-name">BOT</span><span class="num" id="opp-lp">4000</span></div>
+          <div class="lp opp-lp"><span class="who" id="opp-name">BOT</span><span class="bot-diff-tag" id="bot-diff-tag" hidden></span><span class="num" id="opp-lp">4000</span></div>
           <div class="mid-center">
             <div class="phases" id="phases">
               <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
@@ -398,14 +407,14 @@
   <script src="js/audio.js?v=13"></script>
   <script src="js/data.js?v=16"></script>
   <script src="js/data_ed2.js?v=16"></script>
-  <script src="js/storage.js?v=16"></script>
+  <script src="js/storage.js?v=17"></script>
   <script src="js/foil.js?v=16"></script>
-  <script src="js/engine.js?v=16"></script>
-  <script src="js/ai.js?v=16"></script>
+  <script src="js/engine.js?v=17"></script>
+  <script src="js/ai.js?v=17"></script>
   <script src="js/vendor/peerjs.min.js?v=5"></script>
   <script src="js/net.js?v=16"></script>
   <script src="js/game.js?v=16"></script>
-  <script src="js/duel.js?v=16"></script>
+  <script src="js/duel.js?v=17"></script>
   <script src="js/decks.js?v=16"></script>
   <script src="js/admin.js?v=16"></script>
 </body>

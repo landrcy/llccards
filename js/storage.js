@@ -89,6 +89,18 @@
   }
   function saveDeck(i, deck) { const d = load(); const cur = decks(); cur.list[i] = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40), hangar: (deck.hangar || []).slice(0, 2) }; d.decks = cur.list; save(d); }
   function setActiveDeck(i) { const d = load(); d.activeDeck = i; save(d); }
+
+  /* VS BOT difficulty (easy / normal / hard). Remembered across sessions. */
+  function botDiff() {
+    const id = load().botDiff;
+    return (global.LLCAI && LLCAI.DIFF && LLCAI.DIFF[id]) ? id : (id === "easy" || id === "hard" || id === "normal" ? id : "normal");
+  }
+  function setBotDiff(id) {
+    const d = load();
+    d.botDiff = (id === "easy" || id === "hard") ? id : "normal";
+    save(d);
+    return d.botDiff;
+  }
   function addInk(n) {
     const data = load();
     data.ink = Math.max(0, Math.round(data.ink + n));
@@ -106,5 +118,5 @@
     return true;
   }
 
-  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, inkLabel, setInk, addInk, spendInk, flags, setFlag, infinite, decks, saveDeck, setActiveDeck, DECK_SLOTS, bucket };
+  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, inkLabel, setInk, addInk, spendInk, flags, setFlag, infinite, decks, saveDeck, setActiveDeck, botDiff, setBotDiff, DECK_SLOTS, bucket };
 })(window);

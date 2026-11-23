@@ -1,7 +1,24 @@
-/* LLC Cards bot. Reads only its own redacted view, returns one action at a time. */
+/* LLC Cards bot. Reads only its own redacted view, returns one action at a time.
+   Difficulty (easy / normal / hard) is chosen on the VS BOT screen and passed into decide(). */
 (function (global) {
   const BY = () => global.LLCData.BY_ID;
   const can = (L, c, what) => (L.hand[c.uid] || []).includes(what);
+  const LOSS_INK = 25;
+  const DIFF = {
+    easy:   { id: "easy",   label: "EASY",   winInk: 60,  summons: 1, missAttack: 0.4, missTrap: 0.65 },
+    normal: { id: "normal", label: "NORMAL", winInk: 100, summons: 2, missAttack: 0,   missTrap: 0 },
+    hard:   { id: "hard",   label: "HARD",   winInk: 150, summons: 2, missAttack: 0,   missTrap: 0 },
+  };
+  function normalizeDiff(d) {
+    const id = typeof d === "string" ? d : (d && (d.diff || d.difficulty)) || "normal";
+    return DIFF[id] ? id : "normal";
+  }
+  function cfgOf(d) { return DIFF[normalizeDiff(d)]; }
+  function inkReward(win, mode, diff) {
+    if (!win) return LOSS_INK;
+    if (mode === "online") return 150;
+    return cfgOf(diff).winInk;
+  }
 
   function value(id) {
     const c = BY()[id];
@@ -10,7 +27,8 @@
   }
   const REMOVAL = ["erase", "crumple", "stick_squad", "page_turn", "smear_curse", "writers_block", "big_eraser", "dismantle", "lockdown", "recall", "squad_link", "singularity"];
 
-  function decide(V) {
+  function decide(V, opts) {
+    const cfg = cfgOf(opts);
     const me = V.me, op = 1 - me;
     const P = V.players[me], O = V.players[op];
     const L = V.legal;
@@ -31,6 +49,7 @@
         const ids = pd.options.map((slot) => ({ slot, id: P.sz[slot].id }));
         const pick = (id) => ids.find((x) => x.id === id);
         const pass = { a: "respond", slot: null };
+        if (cfg.missTrap && Math.random() < cfg.missTrap) return pass;
         if (pd.on === "summon") { const t = pick("pitfall_doodle") || pick("trip_mine"); return t ? { a: "respond", slot: t.slot } : pass; }
         if (pd.on === "spell") {
           const sid = pd.spell && pd.spell.id;
@@ -79,9 +98,16 @@
     const tg = (x) => (V.spellTargets && V.spellTargets[x.key]) || [];
     const cast = (x, target) => Object.assign({}, x.act, target ? { target } : {});
     const fieldBonus = (fid, side) => {
-      const f = (BY()[fid].fx.field) || {};
+      const fx = BY()[fid].fx || {};
+      const f = fx.field || {};
       const mons = side === me ? myMons.concat(P.hand.filter((c) => BY()[c.id].kind === "monster").map((c) => ({ id: c.id, half: true }))) : oppMons;
-      return mons.reduce((t, m) => t + ((f[BY()[m.id].type] || [0])[0] * (m.half ? 0.5 : 1)), 0);
+      let n = mons.reduce((t, m) => t + ((f[BY()[m.id].type] || [0])[0] * (m.half ? 0.5 : 1)), 0);
+      if (fx.fieldFusion) {
+        const fus = (side === me ? myMons : oppMons).filter((m) => BY()[m.id].fx && BY()[m.id].fx.fusion);
+        n += fus.length * (fx.fieldFusion[0] || 0);
+        if (side === me) n += ((P.hangar || []).length) * (fx.fieldFusion[0] || 0) * 0.5;
+      }
+      return n;
     };
     const threat = (m) => m.atk + (BY()[m.id].sub === "effect" ? 200 : 0) + (m.eq ? m.eq.length * 300 : 0);
 
@@ -112,7 +138,7 @@
         if (theirs > mine + 1800 && P.lp > 1600) return cast(be);
       }
       /* 3. curses on their best monster */
-      for (const id of ["writers_block", "smear_curse"]) {
+      for (const id of ["writers_block", "smear_curse", "stasis_lock", "emp"]) {
         const x = find(id);
         if (!x) continue;
         const ts = tg(x).filter((t) => t.p === op).sort((a, b) => O.mz[b.slot].atk - O.mz[a.slot].atk);
@@ -125,10 +151,10 @@
       if (rf && P.lp <= 3000) return cast(rf);
       const pc = find("paper_cut") || find("jammer");
       if (pc && (O.lp <= 400 || P.hand.length >= 4)) return cast(pc);
-      const sd = find("second_draft");
+      const sd = find("second_draft") || find("rebuild");
       if (sd && myMons.length < 3) return cast(sd);
       /* 5. field spells that help me more than them */
-      for (const id of ["graph_paper", "ink_sea", "doodle_park"]) {
+      for (const id of ["graph_paper", "ink_sea", "doodle_park", "nebula_dock", "battle_station"]) {
         const x = find(id);
         if (!x || (V.field && V.field.id === id)) continue;
         const gain = fieldBonus(id, me) - fieldBonus(id, op);
@@ -138,27 +164,76 @@
       const ink = find("ink_flood");
       if (ink && V.turn > 1 && myMons.some((m) => m.pos === "atk" && !m.attacked && oppMons.some((o) => o.pos === "atk" && o.atk >= m.atk && o.atk - 500 < m.atk))) return cast(ink);
 
-      /* 6. summon */
-      if (!P.summoned) {
+      /* 6. summon (up to the difficulty's cap; tribute summons count, special summons do not) */
+      const used = P.summons || 0;
+      const cap = Math.min((global.LLCEngine && LLCEngine.NORMAL_SUMMONS_PER_TURN) || 2, cfg.summons);
+      if (used < cap) {
         const mons = P.hand.filter((c) => BY()[c.id].kind === "monster" && can(L, c, "summon"));
         const tribOf = (c) => {
           const cd = BY()[c.id];
           if (cd.id === "doodle_prince" && myMons.some((m) => BY()[m.id].type === "DOODLE")) return 0;
+          if (cd.fx && cd.fx.noTributeIfType && myMons.some((m) => BY()[m.id].type === cd.fx.noTributeIfType)) return 0;
           return cd.stars >= 7 ? 2 : cd.stars >= 5 ? 1 : 0;
         };
+        const fillsReq = (card, req) => req.id ? card.id === req.id : BY()[card.id].type === req.type;
+        const missingFor = (recipe, fieldList) => {
+          const used = {};
+          const miss = [];
+          (recipe || []).forEach((req) => {
+            const idx = fieldList.findIndex((m, i) => !used[i] && fillsReq(m, req));
+            if (idx >= 0) used[idx] = true; else miss.push(req);
+          });
+          return miss;
+        };
+        const recipes = (P.hangar || []).map((c) => ({ id: c.id, recipe: (BY()[c.id].fx || {}).fusion || [], val: value(c.id) })).sort((a, b) => b.val - a.val);
+        const wantLink = !!(find("mech_link") && recipes.length && V.turn > 1 && !P.fused);
+        const reserved = {};
+        if (wantLink && cfg.id !== "easy" && recipes[0]) {
+          const usedF = {};
+          recipes[0].recipe.forEach((req) => {
+            const idx = myMons.findIndex((m, i) => !usedF[i] && fillsReq(m, req));
+            if (idx >= 0) { usedF[idx] = true; reserved[myMons[idx].slot] = true; }
+          });
+        }
         let pick = null, trib = [];
+        const slack = cfg.id === "hard" ? 200 : 400;   // hard is happier to tribute
         const big = mons.filter((c) => tribOf(c) > 0).sort((a, b) => BY()[b.id].atk - BY()[a.id].atk);
         for (const c of big) {
           const n = tribOf(c);
           if (myMons.length < n) continue;
           const cd = BY()[c.id];
           if (cd.id === "eraser_god") {
-            const mine = myMons.reduce((t, m) => t + threat(m), 0), theirs = oppMons.reduce((t, m) => t + threat(m), 0);
+            const mine = myMons.reduce((tot, m) => tot + threat(m), 0), theirs = oppMons.reduce((tot, m) => tot + threat(m), 0);
             if (!(theirs > mine && P.lp > 2400)) continue;
           }
-          const fodder = myMons.slice().sort((a, b) => threat(a) - threat(b)).slice(0, n);
-          const lostVal = fodder.reduce((t, m) => t + m.atk, 0);
-          if (lostVal + 400 < cd.atk) { pick = c; trib = fodder.map((m) => m.slot); break; }
+          const fodder = myMons.filter((m) => !reserved[m.slot]).slice().sort((a, b) => threat(a) - threat(b)).slice(0, n);
+          if (fodder.length < n) continue;
+          const lostVal = fodder.reduce((tot, m) => tot + m.atk, 0);
+          if (lostVal + slack < cd.atk) { pick = c; trib = fodder.map((m) => m.slot); break; }
+        }
+        // Hard: if a tribute monster is in hand but we still need fodder, and we have a second
+        // summon this turn, play a weak monster first so the tribute can come out next.
+        if (!pick && cfg.id === "hard" && used + 1 < cap) {
+          const want = big.find((c) => tribOf(c) === myMons.length + 1);
+          const free = P.mz.some((m) => !m);
+          const fodder = mons.filter((c) => tribOf(c) === 0).sort((a, b) => value(a.id) - value(b.id));
+          if (want && free && fodder.length) pick = fodder[0];
+        }
+        // Normal/Hard: if MECH LINK is in hand and a Hangar recipe is almost ready, summon the missing piece.
+        if (!pick && wantLink && cfg.id !== "easy") {
+          const rec = recipes[0];
+          const miss = missingFor(rec.recipe, myMons);
+          const free = P.mz.some((m) => !m);
+          const ssReady = P.hand.some((c) => can(L, c, "ss"));
+          if (free && miss.length && miss.length <= (cap - used) + (ssReady ? 1 : 0)) {
+            const fill = mons.filter((c) => tribOf(c) === 0 && miss.some((req) => fillsReq(c, req)))
+              .sort((a, b) => {
+                const ae = miss.some((req) => req.id && a.id === req.id) ? 0 : 1;
+                const be = miss.some((req) => req.id && b.id === req.id) ? 0 : 1;
+                return ae - be || value(b.id) - value(a.id);
+              });
+            if (fill.length) pick = fill[0];
+          }
         }
         if (!pick) {
           const free = P.mz.some((m) => !m);
@@ -175,10 +250,10 @@
         }
       }
       /* 7. equips on my best monster */
-      for (const id of ["cursed_crown", "ruler_lance", "pencil_sword", "cardboard_shield"]) {
+      for (const id of ["omega_core", "cursed_crown", "rail_rifle", "ruler_lance", "beam_saber", "pencil_sword", "plate_armor", "cardboard_shield"]) {
         const x = find(id);
         if (!x) continue;
-        if (id === "cursed_crown" && P.lp < 2200) continue;
+        if ((id === "cursed_crown" || id === "omega_core") && P.lp < 2200) continue;
         const ts = tg(x).filter((t) => t.p === me && !P.mz[t.slot].blocked);
         if (!ts.length) continue;
         let t;
@@ -195,10 +270,12 @@
         if (m.pos === "atk" && (m.atk < oppMaxAtk || m.blocked) && m.def > m.atk + 200) return { a: "pos", slot };
       }
       /* 9. one-turn pumps when they win a fight */
-      for (const id of ["knights_charge", "sharpen"]) {
+      const oc = find("overclock");
+      if (oc && V.turn > 1 && myMons.some((m) => BY()[m.id].type === "MACHINE" && m.pos === "atk" && !m.attacked)) return cast(oc);
+      for (const id of ["knights_charge", "sharpen", "charge", "wing_clip"]) {
         const x = find(id);
         if (!x || V.turn <= 1) continue;
-        const n = id === "sharpen" ? 500 : 800;
+        const n = id === "sharpen" || id === "charge" ? 500 : 800;
         const ts = tg(x).filter((t) => t.p === me);
         for (const t of ts) {
           const m = P.mz[t.slot];
@@ -223,6 +300,39 @@
 
     if (V.phase === "battle") {
       const mine = myMons.filter((m) => (L.mz[m.slot] || []).includes("attack")).sort((a, b) => b.atk - a.atk);
+      const dmgVs = (m, t) => {
+        if (!t) return L.attackDirect ? m.atk : (L.fly[m.slot] ? Math.floor(m.atk / 2) : 0);
+        if (t.pos === "atk") return m.atk > t.atk ? m.atk - t.atk : 0;
+        return m.atk > t.def && m.pierce ? m.atk - t.def : 0;
+      };
+      const winsVs = (m, t) => t.pos === "atk" ? m.atk > t.atk : m.atk > t.def;
+      if (cfg.id === "hard") {
+        // lethal: a direct hit or one winning battle that finishes them
+        if (L.attackDirect && mine.length) {
+          const killer = mine.find((m) => m.atk >= O.lp) || mine[0];
+          return { a: "attack", slot: killer.slot, target: null };
+        }
+        for (const m of mine) {
+          const lethal = (L.atkTargets[m.slot] || []).find((slot) => dmgVs(m, O.mz[slot]) >= O.lp);
+          if (lethal != null) return { a: "attack", slot: m.slot, target: lethal };
+        }
+        // smallest attacker that still wins, so bigger ones can go for lethal later
+        let pick = null, pickScore = -Infinity;
+        for (const m of mine) {
+          (L.atkTargets[m.slot] || []).forEach((slot) => {
+            const t = Object.assign({ slot }, O.mz[slot]);
+            if (!winsVs(m, t)) return;
+            let score = (t.pos === "atk" ? t.atk : t.def) + dmgVs(m, t) - m.atk * 0.15;
+            if (t.id === "dot_dummy" && !O.dummyUsed) score -= 400;
+            if (t.id === "ink_blot") score -= 200;
+            if (score > pickScore) { pick = { m, t }; pickScore = score; }
+          });
+        }
+        if (pick) return { a: "attack", slot: pick.m.slot, target: pick.t.slot };
+        const flyer = mine.find((m) => L.fly[m.slot]);
+        if (flyer) return { a: "attack", slot: flyer.slot, target: null };
+        return { a: "phase" };
+      }
       for (const m of mine) {
         if (L.attackDirect) return { a: "attack", slot: m.slot, target: null };
         let best = null, bestScore = -1;
@@ -235,13 +345,19 @@
           if (t.id === "ink_blot") score -= 200;
           if (win && score > bestScore) { best = t; bestScore = score; }
         });
-        if (best) return { a: "attack", slot: m.slot, target: best.slot };
-        if (L.fly[m.slot]) return { a: "attack", slot: m.slot, target: null };
+        if (best) {
+          if (cfg.missAttack && Math.random() < cfg.missAttack) continue;
+          return { a: "attack", slot: m.slot, target: best.slot };
+        }
+        if (L.fly[m.slot]) {
+          if (cfg.missAttack && Math.random() < cfg.missAttack) continue;
+          return { a: "attack", slot: m.slot, target: null };
+        }
       }
       return { a: "phase" };
     }
     return null;
   }
 
-  global.LLCAI = { decide, value };
+  global.LLCAI = { decide, value, DIFF, LOSS_INK, normalizeDiff, cfgOf, inkReward };
 })(typeof window !== "undefined" ? window : globalThis);
