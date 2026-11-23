@@ -11,7 +11,7 @@
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
   <link rel="stylesheet" href="css/game.css?v=16">
-  <link rel="stylesheet" href="css/duel.css?v=17">
+  <link rel="stylesheet" href="css/duel.css?v=18">
 </head>
 <body>
   
@@ -242,6 +242,7 @@
   </section>
 
   <section id="screen-duel" class="screen" aria-label="Duel">
+    <div class="duel-field-bg" id="duel-field-bg" aria-hidden="true"></div>
     <div class="act-pop sketch-box" id="act-pop" role="menu" hidden><div class="act-pop-name" id="act-pop-name"></div><div class="act-pop-btns" id="act-pop-btns"></div></div>
     <aside class="detail-panel sketch-box" id="detail-panel" aria-live="polite">
       <div class="dp-card" id="dp-card"></div>
@@ -269,8 +270,10 @@
               <span data-ph="draw">DRAW</span><span data-ph="main">MAIN</span><span data-ph="battle">BATTLE</span><span data-ph="end">END</span>
             </div>
             <p class="duel-log" id="duel-log"></p>
-            <button type="button" class="field-chip" id="field-chip" hidden></button>
-            <button type="button" class="field-chip hangar-chip" id="hangar-chip" hidden></button>
+            <div class="field-chip-slot">
+              <button type="button" class="field-chip" id="field-chip" hidden></button>
+              <button type="button" class="field-chip hangar-chip" id="hangar-chip" hidden></button>
+            </div>
           </div>
           <div class="lp my-lp"><span class="who">YOU</span><span class="num" id="my-lp">4000</span></div>
         </div>
@@ -414,7 +417,7 @@
   <script src="js/vendor/peerjs.min.js?v=5"></script>
   <script src="js/net.js?v=16"></script>
   <script src="js/game.js?v=16"></script>
-  <script src="js/duel.js?v=17"></script>
+  <script src="js/duel.js?v=18"></script>
   <script src="js/decks.js?v=16"></script>
   <script src="js/admin.js?v=16"></script>
 </body>

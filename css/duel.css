@@ -85,6 +85,7 @@ button.big { font-size: 24px; padding: 12px 16px; }
    panel on the left and the battle log on the right. */
 #screen-duel {
   --side: clamp(240px, 21vw, 380px);
+  position: relative;
   padding: 8px;
   height: 100dvh;
   min-height: 0;
@@ -93,7 +94,7 @@ button.big { font-size: 24px; padding: 12px 16px; }
   justify-content: center;
 }
 #screen-duel.active { display: flex; flex-direction: row; align-items: stretch; }
-.detail-panel, .log-panel { display: none; }
+.detail-panel, .log-panel { display: none; position: relative; z-index: 1; isolation: isolate; background: #fff; }
 
 .board {
   position: relative;
@@ -536,6 +537,7 @@ button.big { font-size: 24px; padding: 12px 16px; }
 /* ---- wide screens: panel | board | log ---- */
 @media (min-width: 980px) and (min-aspect-ratio: 5/4) {
   #screen-duel { gap: 12px; padding: 10px 12px; justify-content: space-between; }
+  .duel-field-bg { inset: 10px 12px; }
   .detail-panel, .log-panel { display: flex; }
   #screen-duel { --side: clamp(240px, 19vw, 560px); }
   .board { --S: min(calc((100vw - 2 * var(--side) - 60px) / 3.95), calc((100dvh - 128px) / 6.75), 300px); flex: 1 1 auto; }
@@ -604,19 +606,73 @@ button.big { font-size: 24px; padding: 12px 16px; }
 .shield-tag.used { background: #000; color: #fff; text-decoration: line-through; }
 
 /* ================= v10: field, equips, new animations ================= */
-.field-chip { display: inline-flex; gap: 6px; align-items: baseline; margin-top: 2px; font-size: 14px; padding: 2px 10px; min-height: 0; background: #fff; border-radius: 10px 14px 9px 13px; cursor: pointer; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field-chip-slot { display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; min-height: 32px; margin-top: 2px; width: 100%; min-width: 0; }
+.field-chip-slot.has-hangar { min-height: 68px; }
+.field-chip { display: inline-flex; gap: 5px; align-items: baseline; font-size: 14px; padding: 2px 8px; min-height: 32px; box-sizing: border-box; background: #fff; border-radius: 10px 14px 9px 13px; cursor: pointer; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .field-chip[hidden] { display: none; }
-.field-chip .fc-l { font-size: 11px; opacity: 0.6; letter-spacing: 1px; }
+.field-chip .fc-l { font-size: 11px; opacity: 0.6; letter-spacing: 0; }
 .field-chip b { font-weight: normal; }
-.hangar-chip { margin-left: 4px; }
-.mid-center { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-/* field spells repaint the board paper with their own hatch */
-.board::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.5s ease; }
-.board.field-graph_paper::before { opacity: 1; background-image: linear-gradient(rgba(0,0,0,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.07) 1px, transparent 1px); background-size: 18px 18px; }
-.board.field-ink_sea::before { opacity: 1; background-image: repeating-radial-gradient(circle at 50% 120%, transparent 0 14px, rgba(0,0,0,0.06) 14px 16px); }
-.board.field-doodle_park::before { opacity: 1; background-image: radial-gradient(rgba(0,0,0,0.09) 1.5px, transparent 1.8px); background-size: 14px 14px; }
-.board.field-change { animation: field-flash 0.9s ease-out; }
-@keyframes field-flash { 0% { filter: invert(0); } 15% { filter: invert(1); } 30% { filter: invert(0); } }
+.hangar-chip { margin-left: 0; }
+/* Field spells paint a scene behind the board, never on .board itself.
+   A hatch on .board filled the empty flex margins and looked like a zoom-out.
+   Never put filter/transform on .board: it contains a position:fixed arrow layer. */
+.duel-field-bg {
+  position: absolute;
+  inset: 8px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background-repeat: repeat;
+  background-position: center;
+}
+#screen-duel.has-field .duel-field-bg { opacity: 1; }
+.duel-field-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 58% 74% at 50% 48%,
+    rgba(255,255,255,0.97) 0%,
+    rgba(255,255,255,0.92) 40%,
+    rgba(255,255,255,0.5) 58%,
+    rgba(255,255,255,0.16) 72%,
+    transparent 84%);
+}
+.duel-field-bg.field-bg-generic {
+  background-image: repeating-linear-gradient(-18deg, transparent 0 10px, rgba(0,0,0,0.05) 10px 11px);
+}
+.duel-field-bg.field-bg-graph_paper {
+  background-image: linear-gradient(rgba(0,0,0,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.duel-field-bg.field-bg-ink_sea {
+  background-image: repeating-radial-gradient(circle at 50% 120%, transparent 0 14px, rgba(0,0,0,0.06) 14px 16px);
+}
+.duel-field-bg.field-bg-doodle_park,
+.duel-field-bg.field-bg-nebula_dock,
+.duel-field-bg.field-bg-battle_station {
+  background-repeat: no-repeat;
+  background-size: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.duel-field-bg.field-bg-doodle_park { background-image: url("../assets/ui/field_doodle_park.png"); }
+.duel-field-bg.field-bg-nebula_dock { background-image: url("../assets/ui/field_nebula_dock.png"); }
+.duel-field-bg.field-bg-battle_station { background-image: url("../assets/ui/field_battle_station.png"); }
+#screen-duel.field-change::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  animation: field-veil 0.5s ease-out;
+}
+@keyframes field-veil {
+  0%, 50%, 100% { background: transparent; }
+  12%, 36% { background: #000; }
+  24% { background: #fff; }
+}
 
 .fcard.face-up-st .llc-card { filter: none; }
 .set-tag.eq-tag { background: #fff; color: #000; border: 2px solid #000; }
@@ -660,7 +716,9 @@ button.big { font-size: 24px; padding: 12px 16px; }
 .log-list li.newest { opacity: 1; }
 .zone.full:hover .fcard { transform: translateY(-2px); transition: transform 0.12s ease; }
 @media (prefers-reduced-motion: reduce) {
-  .fcard.dying, .fcard.bouncing, .zone.buffed .fcard, .zone.debuffed .fcard, .board.field-change, .hcard.just-drawn { animation: none; }
+  .fcard.dying, .fcard.bouncing, .zone.buffed .fcard, .zone.debuffed .fcard, .hcard.just-drawn { animation: none; }
+  .duel-field-bg { transition: none; }
+  #screen-duel.field-change::after { animation: none; }
 }
 
 @media (min-width: 1800px) and (min-aspect-ratio: 5/4) {

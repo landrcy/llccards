@@ -554,15 +554,22 @@
     const b = $("board");
     if (!b || !$("screen-duel").classList.contains("active")) return;
     if (reset) b.style.removeProperty("--S");
-    for (let i = 0; i < 6; i++) {
-      const avail = b.clientHeight, need = b.scrollHeight;
-      if (need <= avail + 1) break;
-      const z = b.querySelector(".zone-row .zone");
-      const S = z ? z.getBoundingClientRect().width : 0;
-      if (!S) break;
-      const next = Math.max(34, Math.floor(S * (avail / need) - 1 - i));
-      if (next >= S) break;
-      b.style.setProperty("--S", next + "px");
+    const arrow = $("arrow-layer");
+    const arrowDisplay = arrow ? arrow.style.display : "";
+    if (arrow) arrow.style.display = "none";
+    try {
+      for (let i = 0; i < 6; i++) {
+        const avail = b.clientHeight, need = b.scrollHeight;
+        if (need <= avail + 1) break;
+        const z = b.querySelector(".zone-row .zone");
+        const S = z ? z.getBoundingClientRect().width : 0;
+        if (!S) break;
+        const next = Math.max(34, Math.floor(S * (avail / need) - 1 - i));
+        if (next >= S) break;
+        b.style.setProperty("--S", next + "px");
+      }
+    } finally {
+      if (arrow) arrow.style.display = arrowDisplay;
     }
   }
 
@@ -666,13 +673,21 @@
     }
   }
 
+  const FIELD_BG = { doodle_park: "field-bg-doodle_park", graph_paper: "field-bg-graph_paper", ink_sea: "field-bg-ink_sea", nebula_dock: "field-bg-nebula_dock", battle_station: "field-bg-battle_station" };
   function renderField(V) {
     const chip = $("field-chip");
     const board = $("board");
+    const screen = $("screen-duel");
+    const bg = $("duel-field-bg");
     const id = V.field ? V.field.id : "";
     if (board.dataset.field !== id) {
       board.dataset.field = id;
-      ["graph_paper", "ink_sea", "doodle_park"].forEach((f) => board.classList.toggle("field-" + f, f === id));
+      screen.dataset.field = id;
+      screen.classList.toggle("has-field", !!id);
+      if (bg) {
+        bg.dataset.field = id;
+        bg.className = "duel-field-bg" + (id ? " " + (FIELD_BG[id] || "field-bg-generic") : "");
+      }
     }
     if (!chip) return;
     if (!V.field) { chip.hidden = true; chip.dataset.id = ""; return; }
@@ -695,6 +710,8 @@
     const chip = $("hangar-chip");
     if (!chip) return;
     const mine = ((V.players[V.me] || {}).hangar) || [];
+    const slot = chip.parentElement;
+    if (slot && slot.classList.contains("field-chip-slot")) slot.classList.toggle("has-hangar", mine.length > 0);
     if (!mine.length) { chip.hidden = true; chip.dataset.key = ""; return; }
     chip.hidden = false;
     const key = mine.map((c) => c.id).join(",");
@@ -1187,7 +1204,7 @@
       if (e.e === "unequip") { const z = zoneNode(e.p, "sz", e.slot); if (z) floatText(z, "GONE", "poof-t"); }
       if (e.e === "bounce" && e.slot != null) { const z = zoneNode(e.p, "mz", e.slot); if (z) floatText(z, "BACK TO HAND", "sum-t"); }
       if (e.e === "bounce" && e.slot == null) floatText(e.p === me ? $("my-hand") : $("opp-hand"), BY[e.id].name + " RETURNS", "sum-t");
-      if (e.e === "field") { floatText($("duel-mid"), "FIELD: " + BY[e.id].name, "turn"); pulse($("board"), "field-change"); }
+      if (e.e === "field") { floatText($("duel-mid"), "FIELD: " + BY[e.id].name, "turn"); pulse($("screen-duel"), "field-change"); }
       if (e.e === "discard" && e.p !== me) floatText($("opp-hand"), "DISCARDED " + BY[e.id].name, "poof-t");
       if (e.e === "draw" && events.filter((x) => x.e === "draw").length <= 3 && !events.some((x) => x.e === "turn") && e.p === me) {
         const h = $("my-hand").lastElementChild; if (h) pulse(h, "just-drawn");
