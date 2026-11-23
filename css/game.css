@@ -948,24 +948,35 @@ html, body { height: 100%; overflow: hidden; }
 .llc-card.is-back .face.front { box-shadow: none; animation: none; }
 /* small board cards: keep the glow tight so the board stays tidy */
 .zone .llc-card .face.front, .hcard .llc-card .face.front { animation-duration: 3.4s; }
-/* Secret Rare art animation: 4 stepped frames of the ART ONLY.
-   Chrome (name, stars, text box, ATK/DEF, frame) is transparent on the sheet
-   so the static print stays readable underneath. */
+/* Secret Rare art animation: 4 stacked ART-ONLY frames, swapped in place.
+   Chrome (name, stars, text box, ATK/DEF, frame) is transparent on each
+   frame so the static print stays readable underneath. Each layer shows
+   exactly one complete frame (no sliding sprite sheet). 2.4s per loop. */
 .llc-card.rar-SCR .scr-anim {
   position: absolute; inset: 0; z-index: 2; pointer-events: none;
+}
+.llc-card.rar-SCR .scr-anim i {
+  position: absolute; inset: 0;
+  background-image: var(--scr-sheet);
   background-repeat: no-repeat;
   background-size: 400% 100%;
-  animation: scr-art 0.8s steps(4) infinite;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  opacity: 0;
+  animation: scr-frame 2.4s infinite;
 }
-@keyframes scr-art {
-  from { background-position: 0% 0; }
-  to { background-position: 100% 0; }
+.llc-card.rar-SCR .scr-anim i:nth-child(1) { background-position: 0 0; animation-delay: 0s; }
+.llc-card.rar-SCR .scr-anim i:nth-child(2) { background-position: calc(100% / 3) 0; animation-delay: 0.6s; }
+.llc-card.rar-SCR .scr-anim i:nth-child(3) { background-position: calc(200% / 3) 0; animation-delay: 1.2s; }
+.llc-card.rar-SCR .scr-anim i:nth-child(4) { background-position: 100% 0; animation-delay: 1.8s; }
+@keyframes scr-frame {
+  0%, 24.999% { opacity: 1; }
+  25%, 100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .llc-card .sparkles i, .llc-card.rar-SR .face.front, .llc-card.rar-SCR .face.front { animation: none; }
-  .llc-card.rar-SCR .scr-anim { animation: none; background-position: 0 0; }
+  .llc-card.rar-SCR .scr-anim i { animation: none; opacity: 0; }
+  .llc-card.rar-SCR .scr-anim i:nth-child(1) { opacity: 1; }
 }
 
 
