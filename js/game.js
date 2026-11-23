@@ -235,7 +235,12 @@
   });
 
   /* ---------- shop ---------- */
-  function pct(x) { const v = x * 100; return (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + "%"; }
+  function pct(x) { const v = x * 100; if (v >= 1 && Math.abs(v - Math.round(v)) < 0.05) return Math.round(v) + "%"; return (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + "%"; }
+  function rateRow(r, per, opts) {
+    opts = opts || {};
+    const label = r.name + (opts.hideCount ? "" : " <small>(" + r.count + ")</small>");
+    return '<tr class="r-' + r.rarity + '"><td>' + label + "</td><td>" + pct(per) + "</td></tr>";
+  }
   function renderShop() {
     $("ink-count").textContent = LLCStorage.inkLabel();
     const cost = LLCData.PACKS.super_rare.cost;
@@ -244,11 +249,24 @@
     ["edition_one", "edition_two", "super_rare"].forEach((id) => {
       const t = $("rates-" + id);
       const rows = LLCData.rateTable(id);
-      t.innerHTML = "<caption>DROP RATES</caption><tr><th></th><th>PER CARD</th><th>PER PACK</th></tr>" + rows.map((r) => {
-        const per = r.perCard.length > 1 && r.perCard.some((x) => x !== r.perCard[0])
-          ? r.perCard.map(pct).join(" / ") : pct(r.perCard[0]);
-        return '<tr class="r-' + r.rarity + '"><td>' + r.name + " <small>(" + r.count + ")</small></td><td>" + per + "</td><td>" + pct(r.perPack) + "</td></tr>";
-      }).join("") + '<tr class="foot"><td colspan="3">' + (id === "super_rare" ? "Last card is always Super Rare or better. Mixes Edition One and Two." : "Foil: 1 in 10 non-full-art cards.") + "</td></tr>";
+      if (id === "super_rare") {
+        const by = Object.fromEntries(rows.map((r) => [r.rarity, r]));
+        const R = by.R, SR = by.SR, SCR = by.SCR;
+        t.innerHTML = "<caption>DROP RATES</caption>" +
+          "<tr class=\"slot-head\"><th colspan=\"2\">FIRST 2 CARDS</th></tr>" +
+          rateRow(R, R.perCard[0]) + rateRow(SR, SR.perCard[0]) + rateRow(SCR, SCR.perCard[0]) +
+          "<tr class=\"slot-head\"><th colspan=\"2\">LAST CARD: SUPER RARE OR BETTER</th></tr>" +
+          rateRow(SR, SR.perCard[2], { hideCount: true }) +
+          rateRow(SCR, SCR.perCard[2], { hideCount: true }) +
+          '<tr class="foot"><td colspan="2">Per pack: Rare ' + pct(R.perPack) +
+          " · Super Rare " + pct(SR.perPack) +
+          " · Secret Rare " + pct(SCR.perPack) +
+          ". Mixes Edition One and Two.</td></tr>";
+      } else {
+        t.innerHTML = "<caption>DROP RATES</caption><tr><th></th><th>PER CARD</th><th>PER PACK</th></tr>" + rows.map((r) => {
+          return '<tr class="r-' + r.rarity + '"><td>' + r.name + " <small>(" + r.count + ")</small></td><td>" + pct(r.perCard[0]) + "</td><td>" + pct(r.perPack) + "</td></tr>";
+        }).join("") + '<tr class="foot"><td colspan="3">Foil: 1 in 10 non-full-art cards.</td></tr>';
+      }
     });
   }
   document.addEventListener("llc:screen", (e) => { if (e.detail.name === "shop") renderShop(); });

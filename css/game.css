@@ -1470,3 +1470,114 @@ body.shot .fx-sun-rays { background-position: 0 0 !important; opacity: 1; }
 .hangar-hint { margin: 0 0 6px; font-size: 13px; opacity: 0.75; }
 .shelf { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
 .pack-col { display: flex; flex-direction: column; align-items: center; }
+
+/* v17 — shop: three packs stay in one row; art scales instead of clipping.
+   Root cause: v16 set .shelf { flex-wrap: wrap }, pack art width was tied to
+   (100dvh - 340px) so tall windows made two packs fill the row, and
+   .shop-body { justify-content: center; overflow-y: auto } hid the
+   overflowing pack images at the top (couldn't scroll up to them). */
+#screen-shop .shop-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+}
+#screen-shop .shelf {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(80px, 1fr) auto;
+  justify-items: center;
+  align-items: stretch;
+  column-gap: clamp(10px, 2vw, 36px);
+  row-gap: 6px;
+  width: 100%;
+  max-width: 1600px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px clamp(8px, 1.5vw, 28px) clamp(44px, 6dvh, 72px);
+  box-sizing: border-box;
+  background-size: auto clamp(24px, 3.5dvh, 48px);
+  background-position: center bottom;
+}
+#screen-shop .shop-actions {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  margin-bottom: 10px;
+}
+#screen-shop .pack-col { display: contents; }
+#screen-shop .pack-col:nth-child(1) .pack-slot { grid-column: 1; grid-row: 1; }
+#screen-shop .pack-col:nth-child(1) .rates     { grid-column: 1; grid-row: 2; }
+#screen-shop .pack-col:nth-child(2) .pack-slot { grid-column: 2; grid-row: 1; }
+#screen-shop .pack-col:nth-child(2) .rates     { grid-column: 2; grid-row: 2; }
+#screen-shop .pack-col:nth-child(3) .pack-slot { grid-column: 3; grid-row: 1; }
+#screen-shop .pack-col:nth-child(3) .rates     { grid-column: 3; grid-row: 2; }
+#screen-shop .pack-slot {
+  min-height: 0;
+  width: 100%;
+  max-width: 300px;
+  display: grid;
+  grid-template-rows: minmax(80px, 1fr) auto;
+  align-items: end;
+  justify-items: center;
+  gap: 8px;
+  align-self: stretch;
+}
+#screen-shop .pack-slot img {
+  width: auto;
+  height: 100%;
+  max-width: min(100%, 300px);
+  max-height: 400px;
+  object-fit: contain;
+  object-position: bottom center;
+}
+#screen-shop .pack-slot .label {
+  font-size: clamp(12px, 1.1vw, 20px);
+}
+#screen-shop .rates {
+  min-width: 0;
+  width: 100%;
+  max-width: 360px;
+  font-size: clamp(11px, 0.95vw, 15px);
+  letter-spacing: 0.03em;
+  table-layout: auto;
+  align-self: start;
+}
+#screen-shop .rates th,
+#screen-shop .rates td {
+  padding: 2px 6px;
+}
+#screen-shop .rates td:first-child,
+#screen-shop .rates th:first-child {
+  white-space: nowrap;
+}
+#screen-shop .rates th:not(:first-child),
+#screen-shop .rates td:not(:first-child) {
+  white-space: nowrap;
+  text-align: right;
+  width: 4.6em;
+}
+#screen-shop .rates caption { font-size: inherit; }
+#screen-shop .rates tr.slot-head th {
+  text-align: left;
+  padding-top: 8px;
+  opacity: 0.85;
+  font-size: 0.9em;
+  letter-spacing: 0.06em;
+  white-space: normal;
+  width: auto;
+}
+#screen-shop .rates tr.foot td {
+  font-size: 0.85em;
+  white-space: normal;
+  width: auto;
+}
+@media (max-height: 640px) {
+  #screen-shop .rates { font-size: 11px; }
+  #screen-shop .rates td,
+  #screen-shop .rates th { padding: 1px 5px; }
+  #screen-shop .pack-slot .label { font-size: 12px; }
+}
