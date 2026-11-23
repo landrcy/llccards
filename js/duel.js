@@ -55,7 +55,7 @@
   }
 
   const PROTO = 4;   // bump when rules or sync change, so mismatched builds never play each other
-  const hello = () => ({ v: PROTO, name: myName, deck: myDeck().cards });
+  const hello = () => { const d = myDeck(); return { v: PROTO, name: myName, deck: d.cards, hangar: d.hangar || [] }; };
   const netHandlers = {
     onStatus: (t) => { $("wait-sub").textContent = t; },
     onRoom: (code) => {
@@ -102,7 +102,8 @@
   function botController() {
     const seed = (Math.random() * 2 ** 31) >>> 0;
     const bot = E.botDeck(seed ^ 0x5bd1e995);
-    const { state: s, events } = E.create({ seed, decks: [myDeck().cards, bot.cards], names: ["YOU", "BOT"] });
+    const mine = myDeck();
+    const { state: s, events } = E.create({ seed, decks: [mine.cards, bot.cards], hangars: [mine.hangar || [], bot.hangar || []], names: ["YOU", "BOT"] });
     let timer = null, alive = true;
     const push = (ev) => onView(E.view(s, 0), ev);
     const tick = () => {
@@ -165,9 +166,11 @@
     // the host checks the guest's list: exactly 20 real cards within the copy caps, else the starter deck
     const gd = Array.isArray(guestHello.deck) ? guestHello.deck.map((c) => ({ id: c && String(c.id), foil: !!(c && c.foil) })) : null;
     const guestDeck = gd && E.validDeck(gd) ? gd : E.deckFromCollection({}).cards;
+    const gh = Array.isArray(guestHello.hangar) ? guestHello.hangar.map((c) => ({ id: (c && c.id) ? String(c.id) : String(c), foil: !!(c && c.foil) })) : [];
     const seed = (Math.random() * 2 ** 31) >>> 0;
+    const mine = myDeck();
     const { state: s, events } = E.create({
-      seed, decks: [myDeck().cards, guestDeck],
+      seed, decks: [mine.cards, guestDeck], hangars: [mine.hangar || [], gh],
       names: [myName, String(guestHello.name || "RIVAL").slice(0, 14)],
     });
     const push = (ev) => {
@@ -544,6 +547,7 @@
 
     $("opp-name").textContent = O.name;
     renderField(V);
+    renderHangar(V);
     $("phases").querySelectorAll("span").forEach((s) => s.classList.toggle("on", s.dataset.ph === V.phase));
     $("duel-mid").classList.toggle("their-turn", !myTurn);
     $("duel-mid").classList.toggle("my-turn", myTurn);
@@ -622,7 +626,7 @@
     renderBanner();
     fitBoard(false);
     tweenLp();
-    if (!$("grave-view").hidden) fillGrave(ui.graveP);
+    if (!$("grave-view").hidden) { if (ui.pileKind === "hangar") fillHangar(); else fillGrave(ui.graveP); }
     restoreDetail();
     if (V.winner != null && $("duel-over").hidden) {
       setTimeout(() => { if (ui.V && ui.V.winner != null) showOver(ui.V.winner === ui.V.me, ui.V.endReason); }, 900);
@@ -651,6 +655,58 @@
     chip.onmouseenter = () => showDetail({ id }, null);
     chip.onmouseleave = restoreDetail;
     chip.onclick = (ev) => { ev.stopPropagation(); ui.anchorKey = null; if (isWide()) { ui.pinned = { c: { id }, item: null, info: "FIELD: affects both players.", btns: null, key: null }; restoreDetail(); } else openSheet({ id }, "FIELD: affects both players.", [{ label: "BACK", fn: closeSheet }]); };
+  }
+
+
+  function renderHangar(V) {
+    const chip = $("hangar-chip");
+    if (!chip) return;
+    const mine = ((V.players[V.me] || {}).hangar) || [];
+    if (!mine.length) { chip.hidden = true; chip.dataset.key = ""; return; }
+    chip.hidden = false;
+    const key = mine.map((c) => c.id).join(",");
+    if (chip.dataset.key === key) return;
+    chip.dataset.key = key;
+    chip.innerHTML = "";
+    const l = document.createElement("span"); l.className = "fc-l"; l.textContent = "HANGAR";
+    const n = document.createElement("b");
+    n.textContent = mine.map((c) => (BY[c.id] ? BY[c.id].name : c.id)).join(" · ");
+    chip.appendChild(l); chip.appendChild(n);
+    chip.title = "Your Hangar: fusion monsters waiting for MECH LINK.";
+    chip.onmouseenter = () => { if (mine[0]) showDetail(mine[0], null); };
+    chip.onmouseleave = restoreDetail;
+    chip.onclick = (ev) => { ev.stopPropagation(); fillHangar(); };
+  }
+
+  function fillHangar() {
+    const V = ui.V;
+    if (!V) return;
+    ui.pileKind = "hangar";
+    const mine = ((V.players[V.me] || {}).hangar) || [];
+    $("grave-view").hidden = false;
+    $("grave-title").textContent = "YOUR HANGAR";
+    const n = mine.length;
+    $("grave-sub").textContent = n
+      ? n + " FUSION" + (n === 1 ? "" : "S") + "  ·  TAP ONE TO READ IT  ·  PLAY MECH LINK TO COMBINE"
+      : "Empty. Fusion monsters return here if bounced.";
+    const grid = $("grave-grid");
+    grid.innerHTML = "";
+    mine.forEach((c) => {
+      const cell = document.createElement("div");
+      cell.className = "grave-cell";
+      cell.appendChild(cardEl(c));
+      cell.addEventListener("click", () => {
+        grid.querySelectorAll(".grave-cell.on").forEach((x) => x.classList.remove("on"));
+        cell.classList.add("on");
+        const d = BY[c.id];
+        const info = describe(d) + "\nIn your Hangar. Play MECH LINK when you have the materials on the field.";
+        if (isWide()) { ui.pinned = { c, item: null, info, btns: null, key: "hangar-" + c.uid }; restoreDetail(); }
+        else openSheet(c, info, [{ label: "BACK", fn: closeSheet }]);
+      });
+      hoverable(cell, () => c);
+      grid.appendChild(cell);
+    });
+    $("grave-x").focus({ preventScroll: true });
   }
 
   function renderHint(V) {
@@ -786,6 +842,7 @@
   function openGrave(p) {
     if (!ui.V) return;
     ui.graveP = p;
+    ui.pileKind = "grave";
     fillGrave(p);
     $("grave-view").hidden = false;
     $("grave-x").focus({ preventScroll: true });

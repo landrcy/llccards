@@ -948,9 +948,25 @@ html, body { height: 100%; overflow: hidden; }
 .llc-card.is-back .face.front { box-shadow: none; animation: none; }
 /* small board cards: keep the glow tight so the board stays tidy */
 .zone .llc-card .face.front, .hcard .llc-card .face.front { animation-duration: 3.4s; }
+/* Secret Rare art animation: 4 stepped pixel frames over the art window (and full-bleed for full-art). */
+.llc-card.rar-SCR .scr-anim {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
+  animation: scr-art 0.8s steps(4) infinite;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+@keyframes scr-art {
+  from { background-position: 0% 0; }
+  to { background-position: 100% 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .llc-card .sparkles i, .llc-card.rar-SR .face.front, .llc-card.rar-SCR .face.front { animation: none; }
+  .llc-card.rar-SCR .scr-anim { animation: none; background-position: 0 0; }
 }
+
+
 
 /* ================= shop: ink + rates + SR pack ================= */
 .ink-line { text-align: center; font-size: 20px; margin: 6px 0 0; display: flex; gap: 8px; justify-content: center; align-items: baseline; flex-wrap: wrap; }
@@ -1446,3 +1462,11 @@ body.shot .fx-fighter, body.shot .fx-grass, body.shot .fx-play {
 }
 body.shot #screen-title .fx,
 body.shot .fx-sun-rays { background-position: 0 0 !important; opacity: 1; }
+
+/* Edition Two: binder set tabs, hangar, 3-pack shop */
+.binder-set { margin-bottom: 4px; }
+.hangar-box { margin-top: 12px; padding-top: 8px; border-top: 3px solid #000; }
+.hangar-title { font-size: 16px; margin: 0 0 4px; display: flex; justify-content: space-between; }
+.hangar-hint { margin: 0 0 6px; font-size: 13px; opacity: 0.75; }
+.shelf { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+.pack-col { display: flex; flex-direction: column; align-items: center; }

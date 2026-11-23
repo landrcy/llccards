@@ -4,7 +4,7 @@
 
   const START_INK = 300;   // enough for one Super Rare pack
   function empty() {
-    return { edition_one: {}, ink: START_INK, v: 2 };
+    return { edition_one: {}, edition_two: {}, ink: START_INK, v: 2 };
   }
 
   function load() {
@@ -14,6 +14,7 @@
       const data = JSON.parse(raw);
       if (!data || typeof data !== "object") return empty();
       if (!data.edition_one) data.edition_one = {};
+      if (!data.edition_two) data.edition_two = {};
       if (typeof data.ink !== "number") data.ink = START_INK;   // older saves get the starter ink once
       data.v = 2;
       return data;
@@ -26,9 +27,15 @@
     localStorage.setItem(KEY, JSON.stringify(data));
   }
 
+  function bucket(data, id) {
+    const c = global.LLCData && global.LLCData.BY_ID && global.LLCData.BY_ID[id];
+    const key = (c && c.set) === "edition_two" ? "edition_two" : "edition_one";
+    if (!data[key]) data[key] = {};
+    return data[key];
+  }
   function record(id) {
     const data = load();
-    return data.edition_one[id] || null;
+    return bucket(data, id)[id] || (data.edition_one[id] || null);
   }
 
   function isNew(id) {
@@ -39,8 +46,8 @@
   /* Add pulled cards. Returns the same list annotated with wasNew (before this pack). */
   function addPulls(pulls, max) {
     const data = load();
-    const set = data.edition_one;
     const result = pulls.map((p) => {
+      const set = bucket(data, p.id);
       const wasNew = !(set[p.id] && set[p.id].owned);
       const prev = set[p.id] || { owned: false, foil: false, n: 0 };
       set[p.id] = { owned: true, foil: !!(prev.foil || p.foil), n: Math.max(prev.n || (prev.owned ? 1 : 0), 0) + (p.count || 1) };
@@ -54,9 +61,15 @@
     localStorage.removeItem(KEY);
   }
 
-  function ownedCount() {
-    const set = load().edition_one;
-    return Object.keys(set).filter((id) => set[id] && set[id].owned).length;
+  function ownedCount(setId) {
+    const data = load();
+    const keys = setId ? [setId] : ["edition_one", "edition_two"];
+    let n = 0;
+    keys.forEach((k) => {
+      const set = data[k] || {};
+      n += Object.keys(set).filter((id) => set[id] && set[id].owned).length;
+    });
+    return n;
   }
 
   /* admin flags (persist in the save): inf = infinite ink, instant = instant pack opening, force = next pack's top rarity */
@@ -74,7 +87,7 @@
     while (list.length < DECK_SLOTS) list.push({ name: "DECK " + (list.length + 1), cards: [] });
     return { list, active: typeof d.activeDeck === "number" ? d.activeDeck : -1 };
   }
-  function saveDeck(i, deck) { const d = load(); const cur = decks(); cur.list[i] = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40) }; d.decks = cur.list; save(d); }
+  function saveDeck(i, deck) { const d = load(); const cur = decks(); cur.list[i] = { name: String(deck.name || "DECK " + (i + 1)).slice(0, 18), cards: (deck.cards || []).slice(0, 40), hangar: (deck.hangar || []).slice(0, 2) }; d.decks = cur.list; save(d); }
   function setActiveDeck(i) { const d = load(); d.activeDeck = i; save(d); }
   function addInk(n) {
     const data = load();
@@ -93,5 +106,5 @@
     return true;
   }
 
-  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, inkLabel, setInk, addInk, spendInk, flags, setFlag, infinite, decks, saveDeck, setActiveDeck, DECK_SLOTS };
+  global.LLCStorage = { KEY, START_INK, load, save, record, isNew, addPulls, reset, ownedCount, empty, ink, inkLabel, setInk, addInk, spendInk, flags, setFlag, infinite, decks, saveDeck, setActiveDeck, DECK_SLOTS, bucket };
 })(window);

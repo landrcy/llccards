@@ -8,9 +8,9 @@
   const PACK_SIZE = 5;
   const FOIL_CHANCE = 1 / 10;
 
-  const M = (id, name, stars, rarity, type, atk, def, effect, fx) => ({ id, name, kind: "monster", sub: fx && fx.vanilla ? "normal" : "effect", type, stars, rarity, atk, def, effect, fx: fx || {} });
-  const S = (id, name, stars, rarity, sub, effect, fx) => ({ id, name, kind: "spell", sub, stars, rarity, atk: null, def: null, effect, fx: fx || {} });
-  const T = (id, name, stars, rarity, sub, effect, fx) => ({ id, name, kind: "trap", sub, stars, rarity, atk: null, def: null, effect, fx: fx || {} });
+  const M = (id, name, stars, rarity, type, atk, def, effect, fx) => ({ id, name, kind: "monster", sub: fx && fx.vanilla ? "normal" : "effect", type, stars, rarity, atk, def, effect, fx: fx || {}, set: (fx && fx.set) || "edition_one" });
+  const S = (id, name, stars, rarity, sub, effect, fx) => ({ id, name, kind: "spell", sub, stars, rarity, atk: null, def: null, effect, fx: fx || {}, set: (fx && fx.set) || "edition_one" });
+  const T = (id, name, stars, rarity, sub, effect, fx) => ({ id, name, kind: "trap", sub, stars, rarity, atk: null, def: null, effect, fx: fx || {}, set: (fx && fx.set) || "edition_one" });
 
   const CARDS = [
     /* ---------- monsters ---------- */
@@ -83,11 +83,17 @@
   const PACKS = {
     edition_one: {
       id: "edition_one", name: "EDITION ONE", size: 5, cost: 0,
+      set: "edition_one",
       slots: [{ C: 74, R: 22, SR: 3.5, SCR: 0.5 }],
     },
     super_rare: {
       id: "super_rare", name: "SUPER RARE PACK", size: 3, cost: 300,
       slots: [{ R: 78, SR: 19, SCR: 3 }, { R: 78, SR: 19, SCR: 3 }, { SR: 88, SCR: 12 }],
+    },
+    edition_two: {
+      id: "edition_two", name: "EDITION TWO", size: 5, cost: 0,
+      set: "edition_two",
+      slots: [{ C: 74, R: 22, SR: 3.5, SCR: 0.5 }],
     },
   };
 
@@ -128,8 +134,9 @@
     for (let n = 0; n < P.size; n++) {
       const slot = P.slots[Math.min(n, P.slots.length - 1)];
       const rar = opts.force && n === P.size - 1 ? opts.force : pick(rng, slot);
-      let pool = CARDS.filter((c) => c.rarity === rar && !out.some((o) => o.id === c.id));
-      if (!pool.length) pool = CARDS.filter((c) => c.rarity === rar);
+      const inSet = (c) => !P.set || c.set === P.set;
+      let pool = CARDS.filter((c) => c.rarity === rar && inSet(c) && !out.some((o) => o.id === c.id));
+      if (!pool.length) pool = CARDS.filter((c) => c.rarity === rar && inSet(c));
       const w = {};
       pool.forEach((c) => { w[c.id] = STAR_WEIGHT[c.stars] || 1; });
       const card = BY_ID[pick(rng, w)];
@@ -143,12 +150,19 @@
     return RARITY_ORDER.map((r) => {
       const per = P.slots.map((s) => (s[r] || 0) / 100);
       const anyInPack = 1 - Array.from({ length: P.size }, (_, i) => 1 - per[Math.min(i, per.length - 1)]).reduce((a, b) => a * b, 1);
-      return { rarity: r, name: RARITY_NAME[r], perCard: per, perPack: anyInPack, count: CARDS.filter((c) => c.rarity === r).length };
+      const inSet = (c) => !P.set || c.set === P.set;
+      return { rarity: r, name: RARITY_NAME[r], perCard: per, perPack: anyInPack, count: CARDS.filter((c) => c.rarity === r && inSet(c)).length };
     }).filter((x) => x.perPack > 0);
   }
 
+  function register(extra) {
+    if (!extra || !extra.length) return;
+    extra.forEach((c) => CARDS.push(c));
+    extra.forEach((c) => { BY_ID[c.id] = c; });
+  }
   global.LLCData = {
     SET_ID, SET_NAME, PACK_SIZE, FOIL_CHANCE, STAR_WEIGHT, PACKS, RARITY_NAME, RARITY_ORDER,
     CARDS, BY_ID, params, forceFoil, makeRng, pullPack, rateTable, mulberry32, fullArt,
+    register, M, S, T,
   };
 })(typeof window !== "undefined" ? window : globalThis);

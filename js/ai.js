@@ -8,7 +8,7 @@
     if (!c) return 0;
     return global.LLCEngine && global.LLCEngine.cardValue ? global.LLCEngine.cardValue(c) : (c.atk || 500);
   }
-  const REMOVAL = ["erase", "crumple", "stick_squad", "page_turn", "smear_curse", "writers_block", "big_eraser"];
+  const REMOVAL = ["erase", "crumple", "stick_squad", "page_turn", "smear_curse", "writers_block", "big_eraser", "dismantle", "lockdown", "recall", "squad_link", "singularity"];
 
   function decide(V) {
     const me = V.me, op = 1 - me;
@@ -31,15 +31,15 @@
         const ids = pd.options.map((slot) => ({ slot, id: P.sz[slot].id }));
         const pick = (id) => ids.find((x) => x.id === id);
         const pass = { a: "respond", slot: null };
-        if (pd.on === "summon") { const t = pick("pitfall_doodle"); return t ? { a: "respond", slot: t.slot } : pass; }
+        if (pd.on === "summon") { const t = pick("pitfall_doodle") || pick("trip_mine"); return t ? { a: "respond", slot: t.slot } : pass; }
         if (pd.on === "spell") {
           const sid = pd.spell && pd.spell.id;
           const harmful = REMOVAL.indexOf(sid) !== -1 || ["masterpiece", "cursed_crown", "paper_cut", "second_draft"].indexOf(sid) !== -1 ||
             (BY()[sid] && BY()[sid].sub === "field");
-          const scratch = pick("scratch_that");
+          const scratch = pick("scratch_that") || pick("force_dampener");
           if (scratch && harmful) return { a: "respond", slot: scratch.slot };
-          const nope = pick("nope");
-          const big = ["erase", "crumple", "stick_squad", "big_eraser", "masterpiece", "cursed_crown", "page_turn", "writers_block"].indexOf(sid) !== -1;
+          const nope = pick("nope") || pick("no_signal");
+          const big = ["erase", "crumple", "stick_squad", "big_eraser", "masterpiece", "cursed_crown", "page_turn", "writers_block", "singularity", "mainframe", "mech_link", "squad_link", "dismantle"].indexOf(sid) !== -1;
           if (nope && big && P.lp > 1200 && (sid !== "big_eraser" || myMons.length >= oppMons.length)) return { a: "respond", slot: nope.slot };
           return pass;
         }
@@ -55,8 +55,8 @@
         };
         const bad = (o) => o.lost || o.dmg >= 500;
         const now = outcome(A);
-        const spike = pick("spike_pit"), mirror = pick("mirror_sheet"), sticky = pick("sticky_note");
-        const smudge = pick("smudge"), whoops = pick("whoops");
+        const spike = pick("spike_pit") || pick("rail_trap"), mirror = pick("mirror_sheet") || pick("reflect_array"), sticky = pick("sticky_note") || pick("hard_light");
+        const smudge = pick("smudge") || pick("static_shock"), whoops = pick("whoops") || pick("abort");
         if (spike) return { a: "respond", slot: spike.slot };   // free kill: always worth it
         if (mirror && (now.dmg >= 600 || now.lost)) return { a: "respond", slot: mirror.slot };
         if (!bad(now)) return pass;
@@ -86,8 +86,17 @@
     const threat = (m) => m.atk + (BY()[m.id].sub === "effect" ? 200 : 0) + (m.eq ? m.eq.length * 300 : 0);
 
     if (V.phase === "main") {
+      /* 0. fusion via MECH LINK, then special-summon pilots */
+      const ml = find("mech_link");
+      const fusions = V.fusions || (L.fusions || []);
+      if (ml && fusions.length) {
+        const best = fusions.slice().sort((a, b) => value(b.id) - value(a.id))[0];
+        return Object.assign({}, ml.act, { fusion: best.id, mats: best.mats });
+      }
+      const ss = P.hand.find((c) => can(L, c, "ss"));
+      if (ss) return { a: "ss", uid: ss.uid };
       /* 1. removal on the scariest enemy */
-      for (const id of ["erase", "crumple", "stick_squad", "page_turn"]) {
+      for (const id of ["erase", "crumple", "stick_squad", "page_turn", "dismantle", "lockdown", "recall", "squad_link"]) {
         const x = find(id);
         if (!x) continue;
         const ts = tg(x).filter((t) => t.p === op).sort((a, b) => threat(O.mz[b.slot]) - threat(O.mz[a.slot]));
@@ -110,11 +119,11 @@
         if (ts.length && O.mz[ts[0].slot].atk >= 1200 && !(O.mz[ts[0].slot].eq || []).some((e) => e.id === id)) return cast(x, ts[0]);
       }
       /* 4. card draw / tempo */
-      const qs = find("masterpiece") || find("quick_sketch");
+      const qs = find("masterpiece") || find("mainframe") || find("quick_sketch") || find("system_reboot");
       if (qs && P.hand.length <= 5 && P.deck > 5) return cast(qs);
-      const rf = find("refill");
+      const rf = find("refill") || find("repair_kit");
       if (rf && P.lp <= 3000) return cast(rf);
-      const pc = find("paper_cut");
+      const pc = find("paper_cut") || find("jammer");
       if (pc && (O.lp <= 400 || P.hand.length >= 4)) return cast(pc);
       const sd = find("second_draft");
       if (sd && myMons.length < 3) return cast(sd);

@@ -1,7 +1,7 @@
 /* LLC Cards game shell: title, map, shop, pack opening, binder. */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ASSET_V = "14"; window.LLC_ASSET_V = ASSET_V;
+  const ASSET_V = "16"; window.LLC_ASSET_V = ASSET_V;
   const reduced = () => (window.LLCStorage && LLCStorage.flags().instant) ||
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -119,13 +119,15 @@
 
   /* ---------- binder ---------- */
   let binderFilter = "all";
+  let binderSet = "edition_one";
   function renderBinder() {
     const page = $("binder-page");
     page.innerHTML = "";
-    const data = LLCStorage.load().edition_one;
+    const data = (LLCStorage.load()[binderSet] || {});
     let owned = 0, shown = 0;
     const byR = {};
-    LLCData.CARDS.forEach((card, i) => {
+    const setCards = LLCData.CARDS.filter((c) => (c.set || "edition_one") === binderSet);
+    setCards.forEach((card, i) => {
       const rec = data[card.id];
       const has = rec && rec.owned;
       if (has) { owned++; byR[card.rarity] = (byR[card.rarity] || 0) + 1; }
@@ -152,8 +154,8 @@
       }
       page.appendChild(slot);
     });
-    const tot = (r) => LLCData.CARDS.filter((c) => c.rarity === r).length;
-    $("binder-count").textContent = owned + " / " + LLCData.CARDS.length + "   ·   " +
+    const tot = (r) => setCards.filter((c) => c.rarity === r).length;
+    $("binder-count").textContent = owned + " / " + setCards.length + "   ·   " +
       LLCData.RARITY_ORDER.map((r) => r + " " + (byR[r] || 0) + "/" + tot(r)).join("   ");
   }
   /* ---------- binder close-up ---------- */
@@ -217,6 +219,13 @@
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) stepZoom(dx < 0 ? 1 : -1);
   }, { passive: true });
 
+  if ($("binder-set")) $("binder-set").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || !b.dataset.set) return;
+    binderSet = b.dataset.set;
+    $("binder-set").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    renderBinder();
+  });
   $("binder-filter").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
@@ -232,14 +241,14 @@
     const cost = LLCData.PACKS.super_rare.cost;
     $("sr-cost").textContent = cost;
     $("pack-sr").classList.toggle("broke", LLCStorage.ink() < cost);
-    ["edition_one", "super_rare"].forEach((id) => {
+    ["edition_one", "edition_two", "super_rare"].forEach((id) => {
       const t = $("rates-" + id);
       const rows = LLCData.rateTable(id);
       t.innerHTML = "<caption>DROP RATES</caption><tr><th></th><th>PER CARD</th><th>PER PACK</th></tr>" + rows.map((r) => {
         const per = r.perCard.length > 1 && r.perCard.some((x) => x !== r.perCard[0])
           ? r.perCard.map(pct).join(" / ") : pct(r.perCard[0]);
         return '<tr class="r-' + r.rarity + '"><td>' + r.name + " <small>(" + r.count + ")</small></td><td>" + per + "</td><td>" + pct(r.perPack) + "</td></tr>";
-      }).join("") + '<tr class="foot"><td colspan="3">' + (id === "edition_one" ? "Foil: 1 in 10 non-full-art cards." : "Last card is always Super Rare or better.") + "</td></tr>";
+      }).join("") + '<tr class="foot"><td colspan="3">' + (id === "super_rare" ? "Last card is always Super Rare or better. Mixes Edition One and Two." : "Foil: 1 in 10 non-full-art cards.") + "</td></tr>";
     });
   }
   document.addEventListener("llc:screen", (e) => { if (e.detail.name === "shop") renderShop(); });
@@ -349,7 +358,7 @@
     await show("opening");
     const sr = packId === "super_rare";
     $("screen-opening").classList.toggle("sr-mode", sr);
-    $("pack-live-img").src = "assets/" + (sr ? "pack_super_rare" : "pack_edition_one") + ".png?v=" + ASSET_V;
+    $("pack-live-img").src = "assets/" + (sr ? "pack_super_rare" : packId === "edition_two" ? "pack_edition_two" : "pack_edition_one") + ".png?v=" + ASSET_V;
     $("pack-rip").classList.toggle("sr", sr);
     const pack = $("pack-live");
     pack.hidden = false;
@@ -572,8 +581,9 @@
   $("btn-reset-binder").addEventListener("click", confirmReset);
 
   $("pack-e1").addEventListener("click", () => startOpening("edition_one"));
+  if ($("pack-e2")) $("pack-e2").addEventListener("click", () => startOpening("edition_two"));
   $("pack-sr").addEventListener("click", buySr);
-  $("pack-locked-b").addEventListener("click", () => alert("Coming soon."));
+  if ($("pack-locked-b")) $("pack-locked-b").addEventListener("click", () => alert("Coming soon."));
 
   $("opening-stage").addEventListener("click", () => tapOpening());
   $("opening-stage").addEventListener("keydown", (e) => {

@@ -10,18 +10,36 @@
   const col = () => S.load();
   const deck = () => S.decks().list[cur];
   const countIn = (ids, id) => ids.reduce((a, x) => a + (x === id ? 1 : 0), 0);
-  function limit(c, data) { const r = data.edition_one[c.id]; const have = r && r.owned ? r.n || 1 : 0; return Math.min(have, E.copyCap(c)); }
-  function save(ids, name) { const d = deck(); S.saveDeck(cur, { name: name != null ? name : d.name, cards: ids }); }
+  function recOf(data, id) { return E.ownedRec(data, id); }
+  function limit(c, data) { const r = recOf(data, c.id); const have = r && r.owned ? r.n || 1 : 0; return Math.min(have, E.copyCap(c)); }
+  function save(ids, name, hangar) { const d = deck(); S.saveDeck(cur, { name: name != null ? name : d.name, cards: ids, hangar: hangar != null ? hangar : (d.hangar || []) }); }
 
   function add(id, from) {
     const data = col(), d = deck(), c = D.BY_ID[id];
     if (!c) return false;
+    if (E.isFusion(c)) {
+      const h = (d.hangar || []).slice();
+      if (h.indexOf(id) !== -1) return nudge(c.name + " is already in the Hangar.");
+      if (h.length >= 2) return nudge("Hangar holds 2.");
+      save(d.cards, null, h.concat([id]));
+      if (window.LLCAudio) LLCAudio.play("place");
+      render(id);
+      return true;
+    }
     if (d.cards.length >= SIZE) return nudge("Deck is full (" + SIZE + ").");
     if (countIn(d.cards, id) >= limit(c, data)) return nudge(limit(c, data) < E.copyCap(c) ? "You only own " + limit(c, data) + "." : "Max " + E.copyCap(c) + " of " + c.name + ".");
     save(d.cards.concat([id]));
     if (window.LLCAudio) LLCAudio.play("place");
     render(id);
     return true;
+  }
+  function removeHangar(id) {
+    const d = deck(); const h = (d.hangar || []).slice();
+    const i = h.indexOf(id);
+    if (i < 0) return;
+    h.splice(i, 1); save(d.cards, null, h);
+    if (window.LLCAudio) LLCAudio.play("slide");
+    render();
   }
   function remove(id) {
     const d = deck(); const i = d.cards.lastIndexOf(id);
@@ -38,9 +56,11 @@
   /* Auto-fill: keep what is in the deck, then add your best owned cards (about 11 monsters / 6 spells / 3 traps). */
   function autofill() {
     const data = col(); const ids = deck().cards.slice();
-    const owned = D.CARDS.filter((c) => limit(c, data) > 0).sort((a, b) => E.cardValue(b) - E.cardValue(a));
+    const owned = D.CARDS.filter((c) => limit(c, data) > 0 && !E.isFusion(c)).sort((a, b) => E.cardValue(b) - E.cardValue(a));
     const want = { monster: 11, spell: 6, trap: 3 };
     const kinds = (k) => ids.filter((id) => D.BY_ID[id].kind === k).length;
+    const clean = ids.filter((id) => D.BY_ID[id] && !E.isFusion(D.BY_ID[id]));
+    ids.length = 0; clean.forEach((id) => ids.push(id));
     for (let pass = 0; pass < 2 && ids.length < SIZE; pass++) {
       for (let round = 0; round < 3; round++) owned.forEach((c) => {
         if (ids.length >= SIZE || countIn(ids, c.id) > round || countIn(ids, c.id) >= limit(c, data)) return;
@@ -48,7 +68,8 @@
         ids.push(c.id);
       });
     }
-    save(ids); render();
+    const hangar = D.CARDS.filter((c) => E.isFusion(c) && limit(c, data) > 0).sort((a, b) => E.cardValue(b) - E.cardValue(a)).slice(0, 2).map((c) => c.id);
+    save(ids, null, hangar); render();
     if (ids.length < SIZE) nudge("You own " + ids.length + " usable cards. Open more packs to fill " + SIZE + ".");
   }
 
@@ -76,7 +97,7 @@
     const data = col(), d = deck(), { active } = S.decks();
     renderTabs();
     if (document.activeElement !== $("deck-name")) $("deck-name").value = d.name;
-    const probs = E.deckProblems(d.cards, data);
+    const probs = E.deckProblems(d.cards, data, d.hangar || []);
     const valid = !probs.length;
     const use = $("deck-use");
     use.textContent = active === cur ? (valid ? "IN USE ✓" : "IN USE (INVALID: AUTO DECK USED)") : "USE IN BATTLES";
@@ -92,7 +113,8 @@
       cell.className = "deck-cell" + (n >= lim || d.cards.length >= SIZE ? " maxed" : "") + (n ? " in" : "");
       cell.dataset.id = c.id; cell.tabIndex = 0; cell.setAttribute("role", "button");
       cell.setAttribute("aria-label", "Add " + c.name + " (" + n + " of " + lim + ")");
-      const el = LLCFoil.createCard(c, { foil: !!(data.edition_one[c.id] && data.edition_one[c.id].foil), face: "front" });
+      const rec = recOf(data, c.id);
+      const el = LLCFoil.createCard(c, { foil: !!(rec && rec.foil), face: "front" });
       el.classList.add("sm");
       cell.appendChild(el);
       const badge = document.createElement("span"); badge.className = "deck-badge"; badge.textContent = n + "/" + lim;
@@ -117,6 +139,23 @@
       list.appendChild(li);
     });
     if (!ids.length) list.innerHTML = '<li class="deck-row empty-row">Empty deck. Click cards on the left, or AUTO-FILL.</li>';
+
+    const hl = $("hangar-list");
+    if (hl) {
+      hl.innerHTML = "";
+      const hangar = d.hangar || [];
+      if ($("hangar-count")) $("hangar-count").textContent = hangar.length + " / 2";
+      hangar.forEach((id) => {
+        const c = D.BY_ID[id]; if (!c) return;
+        const li = document.createElement("li");
+        li.className = "deck-row k-monster r-" + c.rarity + (id === flashId ? " added" : "");
+        li.dataset.id = id; li.tabIndex = 0; li.setAttribute("role", "button");
+        li.setAttribute("aria-label", "Remove " + c.name + " from Hangar");
+        li.innerHTML = '<span class="dr-n">F</span><img src="assets/cards/' + id + '.png?v=' + (window.LLC_ASSET_V || "16") + '" alt="" draggable="false"><span class="dr-name">' + c.name + '</span><span class="dr-meta">FUSION ' + c.atk + '</span><span class="dr-x" aria-hidden="true">−</span>';
+        hl.appendChild(li);
+      });
+      if (!hangar.length) hl.innerHTML = '<li class="deck-row empty-row">Empty Hangar. Click a fusion monster to dock it.</li>';
+    }
 
     // stats
     const by = (f) => d.cards.filter((id) => f(D.BY_ID[id])).length;
@@ -182,6 +221,9 @@
     if (cell && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); add(cell.dataset.id); const n = $("deck-grid").querySelector('[data-id="' + cell.dataset.id + '"]'); if (n) n.focus(); }
   });
   $("deck-list").addEventListener("click", (e) => { const li = e.target.closest(".deck-row[data-id]"); if (li) remove(li.dataset.id); });
+  if ($("hangar-list")) {
+    $("hangar-list").addEventListener("click", (e) => { const li = e.target.closest(".deck-row[data-id]"); if (li) removeHangar(li.dataset.id); });
+  }
   $("deck-list").addEventListener("keydown", (e) => { const li = e.target.closest && e.target.closest(".deck-row[data-id]"); if (li && (e.key === "Enter" || e.key === " " || e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); remove(li.dataset.id); } });
   $("deck-filter").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
@@ -190,9 +232,9 @@
   $("deck-name").addEventListener("input", () => { save(deck().cards, $("deck-name").value.toUpperCase() || "DECK " + (cur + 1)); renderTabs(); });
   $("deck-name").addEventListener("change", () => render());
   $("deck-auto").addEventListener("click", autofill);
-  $("deck-clear").addEventListener("click", () => { if (!deck().cards.length || confirm("Empty " + deck().name + "?")) { save([]); render(); } });
+  $("deck-clear").addEventListener("click", () => { if ((!deck().cards.length && !(deck().hangar || []).length) || confirm("Empty " + deck().name + "?")) { save([], null, []); render(); } });
   $("deck-use").addEventListener("click", () => { const { active } = S.decks(); S.setActiveDeck(active === cur ? -1 : cur); render(); });
 
   document.addEventListener("llc:screen", (e) => { if (e.detail.name === "decks") { const a = S.decks().active; if (a >= 0) cur = a; render(); } });
-  window.LLCDecks = { render, add, remove, autofill, get slot() { return cur; }, set slot(i) { cur = i; render(); } };
+  window.LLCDecks = { render, add, remove, removeHangar, autofill, get slot() { return cur; }, set slot(i) { cur = i; render(); } };
 })();

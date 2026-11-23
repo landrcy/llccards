@@ -116,6 +116,7 @@
       '<div class="llc-card-3d">' +
         '<div class="face front">' +
           '<img class="print" src="assets/cards/' + card.id + '.png?v=' + v + '" alt="' + alt + '" draggable="false">' +
+          ((rar === "SCR" && card.set === "edition_two") ? "<div class=\"scr-anim\" style=\"background-image:url(assets/anim/" + card.id + ".png?v=" + v + ")\" aria-hidden=\"true\"></div>" : "") +
           '<div class="foil" aria-hidden="true"></div>' +
           '<div class="glare" aria-hidden="true"></div>' +
           '<div class="foil-sweep" aria-hidden="true"></div>' +

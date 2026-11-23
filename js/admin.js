@@ -88,18 +88,19 @@
   on("adm-give-all", () => { S.addPulls(D.CARDS.map((c) => ({ id: c.id, card: c, foil: $("adm-foil").checked }))); say("Gave 1 of all " + D.CARDS.length + " cards."); after(); });
   on("adm-max", () => {
     const data = S.load();
-    D.CARDS.forEach((c) => { const r = data.edition_one[c.id] || {}; data.edition_one[c.id] = { owned: true, foil: !!r.foil, n: Math.max(r.n || 0, LLCEngine.copyCap(c)) }; });
+    D.CARDS.forEach((c) => { const set = S.bucket(data, c.id); const r = set[c.id] || {}; set[c.id] = { owned: true, foil: !!r.foil, n: Math.max(r.n || 0, LLCEngine.copyCap(c)) }; });
     S.save(data); say("Every card unlocked at max copies."); after();
   });
   on("adm-all-foil", () => {
     const data = S.load();
-    Object.keys(data.edition_one).forEach((id) => { if (data.edition_one[id].owned) data.edition_one[id].foil = true; });
+    ["edition_one","edition_two"].forEach((k) => { const set = data[k] || {}; Object.keys(set).forEach((id) => { if (set[id].owned) set[id].foil = true; }); });
     S.save(data); say("Every owned card is foil."); after();
   });
 
   /* packs */
   const openFree = (id) => { if (LLC.screen === "duel") return say("Leave the duel first."); toggle(false); LLC.startOpening(id); };
   on("adm-open-e1", () => openFree("edition_one"));
+  if ($("adm-open-e2")) on("adm-open-e2", () => openFree("edition_two"));
   on("adm-open-sr", () => openFree("super_rare"));
   on("adm-instant", () => { const v = !S.flags().instant; S.setFlag("instant", v); say("Instant opening " + (v ? "ON" : "OFF") + "."); refresh(); });
   $("adm-force").addEventListener("change", guard(() => { const v = $("adm-force").value; S.setFlag("force", v || null); say(v ? "Next pack ends with a " + D.RARITY_NAME[v] + "." : "Next pack is random."); }));
