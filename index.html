@@ -10,8 +10,8 @@
   <meta property="og:description" content="Open packs, fill your binder, duel bots or friends online.">
   <meta property="og:url" content="https://landrcy.github.io/llccards/">
   <meta property="og:image" content="https://landrcy.github.io/llccards/assets/logo.png">
-  <link rel="stylesheet" href="css/game.css?v=14">
-  <link rel="stylesheet" href="css/duel.css?v=13">
+  <link rel="stylesheet" href="css/game.css?v=15">
+  <link rel="stylesheet" href="css/duel.css?v=15">
 </head>
 <body>
   
@@ -98,6 +98,7 @@
   </section>
 
   <section id="screen-opening" class="screen" aria-label="Pack opening">
+    <div class="sr-rays" aria-hidden="true"><img src="assets/ui/sunburst.png?v=15" alt=""></div>
     <div class="opening-stage" id="opening-stage">
       <div class="pack-on-table" id="pack-live" hidden>
         <img id="pack-live-img" src="assets/pack_edition_one.png?v=13" alt="Edition One pack">
@@ -116,7 +117,6 @@
       </div>
       <div class="card-stack" id="card-stack" hidden></div>
       <div class="rarity-pop" id="rarity-pop" aria-live="polite"></div>
-      <div class="sr-rays" aria-hidden="true"></div>
       <p class="opening-caption" id="opening-caption"></p>
     </div>
     <div class="fly-target" id="fly-target">BINDER</div>
@@ -262,12 +262,12 @@
         <button type="button" id="btn-menu" class="small">MENU</button>
         <button type="button" id="btn-next" class="next">BATTLE &gt;</button>
       </div>
+      <svg class="arrow-layer" id="arrow-layer" aria-hidden="true"></svg>
     </div>
     <aside class="log-panel sketch-box">
       <h3>BATTLE LOG</h3>
       <ol class="log-list" id="log-list"></ol>
     </aside>
-    <svg class="arrow-layer" id="arrow-layer" aria-hidden="true"></svg>
     <div class="clash" id="clash" hidden>
       <div class="clash-box sketch-box">
         <div class="clash-row">
@@ -392,8 +392,8 @@
   <script src="js/vendor/peerjs.min.js?v=5"></script>
   <script src="js/net.js?v=13"></script>
   <script src="js/game.js?v=14"></script>
-  <script src="js/duel.js?v=13"></script>
-  <script src="js/decks.js?v=13"></script>
+  <script src="js/duel.js?v=15"></script>
+  <script src="js/decks.js?v=15"></script>
   <script src="js/admin.js?v=13"></script>
 </body>
 </html>

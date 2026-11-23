@@ -127,12 +127,18 @@
       '<div class="ds-row"><span>MONSTERS ' + mons + "</span><span>SPELLS " + sp + "</span><span>TRAPS " + tr + "</span></div>" +
       '<div class="ds-row stars"><span>1-4★ ' + low + "</span><span>5-6★ " + mid + " <i>(1 tribute)</i></span><span>7-8★ " + hi + " <i>(2)</i></span></div>";
     const w = $("deck-warn");
-    if (nudge.t && w.classList.contains("shake") && flashId == null) { /* keep the nudge text until its timer */ }
-    const soft = [];
-    if (valid && hi + mid > low) soft.push("lots of tribute monsters, few to tribute");
-    if (valid && mons < 8) soft.push("few monsters");
-    w.textContent = valid ? (soft.length ? "OK, but: " + soft.join(", ") + "." : "READY TO BATTLE.") : "NOT VALID: " + probs.join(" · ") + (active === cur ? "  (the auto deck is used until it's fixed)" : "");
-    w.className = "deck-warn " + (valid ? "ok" : "bad");
+    if (nudge.t && w.classList.contains("shake") && flashId == null) {
+      /* keep the nudge text until its timer */
+    } else if (!d.cards.length) {
+      w.textContent = "Using auto-deck, build your own to customise.";
+      w.className = "deck-warn auto";
+    } else {
+      const soft = [];
+      if (valid && hi + mid > low) soft.push("lots of tribute monsters, few to tribute");
+      if (valid && mons < 8) soft.push("few monsters");
+      w.textContent = valid ? (soft.length ? "OK, but: " + soft.join(", ") + "." : "READY TO BATTLE.") : "NOT VALID: " + probs.join(" · ") + (active === cur ? "  (the auto deck is used until it's fixed)" : "");
+      w.className = "deck-warn " + (valid ? "ok" : "bad");
+    }
   }
 
   /* ---- input: click / keyboard / pointer drag (desktop) ---- */

@@ -854,7 +854,9 @@
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
     const start = { x: a.x + ux * 24, y: a.y + uy * 24 };
-    const end = { x: b.x - ux * 18, y: b.y - uy * 18 };
+    const toLp = !!(toEl && (toEl.id === "my-lp" || toEl.id === "opp-lp" || (toEl.closest && toEl.closest(".lp"))));
+    const endPad = toLp ? 32 : 18;
+    const end = { x: b.x - ux * endPad, y: b.y - uy * endPad };
     const seg = 9, pts = [];
     for (let i = 0; i <= seg; i++) {
       const k = i / seg;
